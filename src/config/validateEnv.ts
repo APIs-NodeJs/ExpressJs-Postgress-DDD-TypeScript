@@ -29,13 +29,6 @@ const envSchema = z.object({
     .transform((val) => val === "true")
     .default("false"),
 
-  // JWT secrets
-  JWT_ACCESS_SECRET: z
-    .string()
-    .min(32, "JWT access secret must be at least 32 characters"),
-  JWT_REFRESH_SECRET: z
-    .string()
-    .min(32, "JWT refresh secret must be at least 32 characters"),
 
   // CORS configuration
   CORS_ENABLED: z
@@ -68,8 +61,23 @@ const envSchema = z.object({
     .optional(),
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
-});
 
+    // JWT secrets
+  JWT_ACCESS_SECRET: z
+    .string()
+    .min(64, "JWT access secret must be at least 64 characters")
+    .regex(/^[A-Za-z0-9+/=_\-!@#$%^&*()]+$/, "JWT secret contains invalid characters")
+    .refine((val) => {
+      // Check entropy
+      const uniqueChars = new Set(val).size;
+      return uniqueChars >= 32; // At least 32 unique characters
+    }, "JWT secret does not have sufficient entropy"),
+
+  JWT_REFRESH_SECRET: z
+    .string()
+    .min(64, "JWT refresh secret must be at least 64 characters")
+    .regex(/^[A-Za-z0-9+/=_\-!@#$%^&*()]+$/, "JWT secret contains invalid characters"),
+});
 export type EnvConfig = z.infer<typeof envSchema>;
 
 /**
