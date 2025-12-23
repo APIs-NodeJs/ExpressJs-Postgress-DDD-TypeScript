@@ -9,18 +9,7 @@ import { config } from "@config/env";
 
 // Routes
 import authRoutes from "@modules/auth/presentation/routes/auth.routes";
-import productRoutes from "@modules/products/presentation/routes/product.routes";
-import featureRoutes from "@modules/features/presentation/routes/feature.routes";
-import taskRoutes from "@modules/tasks/presentation/routes/task.routes";
-import bugRoutes from "@modules/bugs/presentation/routes/bug.routes";
-import sprintRoutes from "@modules/sprints/presentation/routes/sprint.routes";
-import releaseRoutes from "@modules/releases/presentation/routes/release.routes";
-import teamRoutes from "@modules/team/presentation/routes/team.routes";
-import analyticsRoutes from "@modules/analytics/presentation/routes/analytics.routes";
 import settingsRoutes from "@modules/settings/presentation/routes/settings.routes";
-import dashboardRoutes from "@modules/dashboard/presentation/routes/dashboard.routes";
-import billingRoutes from "@modules/billing/presentation/routes/billing.routes";
-import adminRoutes from "@modules/admin/presentation/routes/admin.routes";
 import corsRoutes from "@infrastructure/http/routes/cors.routes";
 
 export function createApp(): Application {
@@ -53,20 +42,7 @@ export function createApp(): Application {
   const apiPrefix = config.app.apiPrefix;
 
   app.use(`${apiPrefix}/auth`, authRoutes);
-  app.use(`${apiPrefix}/products`, productRoutes);
-  app.use(`${apiPrefix}/features`, featureRoutes);
-  app.use(`${apiPrefix}/tasks`, taskRoutes);
-  app.use(`${apiPrefix}/bugs`, bugRoutes);
-  app.use(`${apiPrefix}/sprints`, sprintRoutes);
-  app.use(`${apiPrefix}/releases`, releaseRoutes);
-  app.use(`${apiPrefix}/team`, teamRoutes);
-  app.use(`${apiPrefix}/analytics`, analyticsRoutes);
   app.use(`${apiPrefix}/users`, settingsRoutes);
-  app.use(`${apiPrefix}/dashboard`, dashboardRoutes);
-  app.use(`${apiPrefix}/billing`, billingRoutes);
-
-  // Admin routes (owner + admin only)
-  app.use(`${apiPrefix}/admin`, adminRoutes);
 
   // CORS management routes (owner only)
   app.use(`${apiPrefix}/admin/cors`, corsRoutes);
