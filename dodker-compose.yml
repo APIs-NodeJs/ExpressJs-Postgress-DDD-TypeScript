@@ -1,124 +1,109 @@
-version: "3.8"
+
+version: '3.8'
 
 services:
-  # API Service
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: devcycle-api
+  # Nginx load balancer
+  nginx:
+    image: nginx:alpine
     ports:
-      - "${PORT:-3000}:3000"
-    environment:
-      NODE_ENV: ${NODE_ENV:-development}
-      PORT: 3000
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-devcycle}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-root}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      CORS_ENABLED: ${CORS_ENABLED:-true}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - api-1
+      - api-2
+      - api-3
     restart: unless-stopped
-    networks:
-      - devcycle-network
-    volumes:
-      - ./logs:/app/logs
 
-  # PostgreSQL Database
-  db:
-    image: postgres:15-alpine
-    container_name: devcycle-db
+  # API instances
+  api-1:
+    build: .
     environment:
-      POSTGRES_DB: ${DB_NAME:-devcycle}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-root}
-      PGDATA: /var/lib/postgresql/data/pgdata
-    ports:
-      - "${DB_PORT:-5432}:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-    networks:
-      - devcycle-network
-
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: devcycle-redis
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-    networks:
-      - devcycle-network
-
-  # PgAdmin (Optional - for development)
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: devcycle-pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@devcycle.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
-      PGADMIN_CONFIG_SERVER_MODE: "False"
-    ports:
-      - "${PGADMIN_PORT:-5050}:80"
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
+      - NODE_ENV=production
+      - INSTANCE_ID=api-1
+    env_file: .env.production
     depends_on:
       - db
-    restart: unless-stopped
-    networks:
-      - devcycle-network
-    profiles:
-      - dev
-
-  # Redis Commander (Optional - for development)
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: devcycle-redis-commander
-    environment:
-      - REDIS_HOSTS=local:redis:6379
-    ports:
-      - "${REDIS_COMMANDER_PORT:-8081}:8081"
-    depends_on:
       - redis
     restart: unless-stopped
-    networks:
-      - devcycle-network
-    profiles:
-      - dev
+
+  api-2:
+    build: .
+    environment:
+      - NODE_ENV=production
+      - INSTANCE_ID=api-2
+    env_file: .env.production
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  api-3:
+    build: .
+    environment:
+      - NODE_ENV=production
+      - INSTANCE_ID=api-3
+    env_file: .env.production
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  # PostgreSQL with replication
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./pg_config/postgresql.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    restart: unless-stopped
+
+  # Redis cluster
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # Distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686" # UI
+      - "14268:14268" # Collector
+    restart: unless-stopped
 
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
-  pgadmin_data:
-    driver: local
-
-networks:
-  devcycle-network:
-    driver: bridge
+  prometheus_data:
+  grafana_data:
