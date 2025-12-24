@@ -8,7 +8,36 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "jest",
-    "lint": "eslint src --ext .ts"
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean",
+    "db:migrate": "node -r tsx/register src/scripts/migrate.ts",
+    "db:seed": "node -r tsx/register src/scripts/seed.ts",
+    "docker:build": "docker build -t devcycle-api .",
+    "docker:run": "docker-compose up -d",
+    "docker:stop": "docker-compose down",
+    "logs": "tail -f logs/combined.log",
+    "prepare": "husky install"
+  },
+  "keywords": [
+    "api",
+    "rest",
+    "express",
+    "typescript",
+    "authentication",
+    "postgresql"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -40,6 +69,14 @@
     "eslint": "^8.56.0",
     "@typescript-eslint/eslint-plugin": "^6.16.0",
     "@typescript-eslint/parser": "^6.16.0",
-    "prettier": "^3.1.1"
+    "prettier": "^3.1.1",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   }
 }
