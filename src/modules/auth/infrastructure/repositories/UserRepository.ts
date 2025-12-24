@@ -1,8 +1,9 @@
 import { Transaction } from "sequelize";
 import { UserModel } from "../../../../infrastructure/database/models/UserModel";
 import { User } from "../../domain/entities/User";
+import { IUserRepository } from "../../domain/repositories/IUserRepository";
 
-export class UserRepository {
+export class UserRepository implements IUserRepository {
   async findByEmail(email: string): Promise<User | null> {
     const model = await UserModel.findOne({
       where: { email: email.toLowerCase() },
@@ -13,6 +14,13 @@ export class UserRepository {
   async findById(id: string): Promise<User | null> {
     const model = await UserModel.findByPk(id);
     return model ? this.toDomain(model) : null;
+  }
+
+  async findByWorkspaceId(workspaceId: string): Promise<User[]> {
+    const models = await UserModel.findAll({
+      where: { workspaceId },
+    });
+    return models.map((model) => this.toDomain(model));
   }
 
   async create(user: User, transaction?: Transaction): Promise<User> {
@@ -53,13 +61,6 @@ export class UserRepository {
       transaction,
     });
     return deletedCount > 0;
-  }
-
-  async findByWorkspaceId(workspaceId: string): Promise<User[]> {
-    const models = await UserModel.findAll({
-      where: { workspaceId },
-    });
-    return models.map((model) => this.toDomain(model));
   }
 
   private toDomain(model: UserModel): User {

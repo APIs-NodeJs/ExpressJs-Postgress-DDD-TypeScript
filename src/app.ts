@@ -17,6 +17,9 @@ import {
   getSentryHandlers,
 } from "./infrastructure/monitoring/sentry";
 
+import swaggerUi from "swagger-ui-express";
+import { swaggerSpec } from "./infrastructure/documentation/swagger";
+
 export function createApp(): Application {
   const app = express();
 
@@ -27,6 +30,16 @@ export function createApp(): Application {
   // Sentry request handler must be first
   app.use(sentryHandlers.requestHandler);
   app.use(sentryHandlers.tracingHandler);
+
+  // Add this route BEFORE error handlers:
+  app.use(
+    "/api/docs",
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, {
+      customCss: ".swagger-ui .topbar { display: none }",
+      customSiteTitle: "Devcycle API Documentation",
+    })
+  );
 
   // Trust proxy
   if (isProduction) {

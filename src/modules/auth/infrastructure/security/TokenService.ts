@@ -1,21 +1,20 @@
-import jwt from 'jsonwebtoken';
-import { env } from '../../../../config/env';
+import jwt from "jsonwebtoken";
+import { env } from "../../../../config/env";
+import {
+  ITokenService,
+  TokenPayload,
+  TokenPair,
+} from "../../domain/services/ITokenService";
 
-export interface TokenPayload {
-  userId: string;
-  workspaceId: string;
-  email: string;
-}
-
-export class TokenService {
-  generateTokenPair(payload: TokenPayload) {
+export class TokenService implements ITokenService {
+  generateTokenPair(payload: TokenPayload): TokenPair {
     const accessToken = jwt.sign(payload, env.JWT_ACCESS_SECRET, {
       expiresIn: env.JWT_ACCESS_EXPIRES_IN,
     });
     const refreshToken = jwt.sign(payload, env.JWT_REFRESH_SECRET, {
       expiresIn: env.JWT_REFRESH_EXPIRES_IN,
     });
-    return { accessToken, refreshToken, expiresIn: 3600 };
+    return { accessToken, refreshToken, expiresIn: 900 };
   }
 
   verifyAccessToken(token: string): TokenPayload {

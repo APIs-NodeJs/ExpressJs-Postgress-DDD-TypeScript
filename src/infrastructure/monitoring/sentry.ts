@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/node";
-import { ProfilingIntegration } from "@sentry/profiling-node";
+import { nodeProfilingIntegration } from "@sentry/profiling-node";
 import { env, isProduction } from "../../config/env";
 
 export function initializeSentry(app: any): void {
@@ -14,11 +14,10 @@ export function initializeSentry(app: any): void {
     integrations: [
       new Sentry.Integrations.Http({ tracing: true }),
       new Sentry.Integrations.Express({ app }),
-      new ProfilingIntegration(),
+      nodeProfilingIntegration(),
     ],
     tracesSampleRate: isProduction ? 0.1 : 1.0,
     profilesSampleRate: isProduction ? 0.1 : 1.0,
-
     beforeSend(event, hint) {
       // Don't send operational errors to Sentry
       const error = hint.originalException;

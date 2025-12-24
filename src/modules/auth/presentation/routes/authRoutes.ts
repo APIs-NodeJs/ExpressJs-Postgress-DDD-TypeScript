@@ -1,4 +1,3 @@
-// src/modules/auth/presentation/routes/authRoutes.ts
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { AuthController } from "../controllers/AuthController";
@@ -10,58 +9,44 @@ import {
   loginSchema,
   refreshTokenSchema,
 } from "../../infrastructure/validators/authValidators";
-import { UserRepository } from "../../infrastructure/repositories/UserRepository";
-import { WorkspaceRepository } from "../../infrastructure/repositories/WorkspaceRepository";
-import { PasswordHasher } from "../../infrastructure/security/PasswordHasher";
-import { TokenService } from "../../infrastructure/security/TokenService";
+import { env } from "../../../../config/env";
+import { Logger } from "../../../../shared/infrastructure/logger/logger";
+import { container } from "../../../../infrastructure/di/container";
+import { TOKENS } from "../../../../infrastructure/di/tokens";
 import { SignUpUseCase } from "../../application/use-cases/SignUpUseCase";
 import { LoginUseCase } from "../../application/use-cases/LoginUseCase";
 import { GetCurrentUserUseCase } from "../../application/use-cases/GetCurrentUserUseCase";
 import { RefreshTokenUseCase } from "../../application/use-cases/RefreshTokenUseCase";
-import { env } from "../../../../config/env";
-import { Logger } from "../../../../shared/infrastructure/logger/logger";
 
 const router = Router();
 
-// Stricter rate limiting for authentication endpoints
+// Auth rate limiter
 const authLimiter = rateLimit({
   windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
   max: env.AUTH_RATE_LIMIT_MAX_REQUESTS,
   standardHeaders: true,
   legacyHeaders: false,
-  skipSuccessfulRequests: false,
-  message: "Too many authentication attempts, please try again later.",
   handler: (req, res) => {
-    Logger.security("Auth rate limit exceeded", {
-      ip: req.ip,
-      path: req.path,
-    });
+    Logger.security("Auth rate limit exceeded", { ip: req.ip, path: req.path });
     res.status(429).json({
       error: {
         code: "AUTH_RATE_LIMIT_EXCEEDED",
-        message:
-          "Too many authentication attempts. Please try again in 15 minutes.",
+        message: "Too many authentication attempts.",
         requestId: req.id,
       },
     });
   },
 });
 
-// Dependency injection setup
-const userRepo = new UserRepository();
-const workspaceRepo = new WorkspaceRepository();
-const passwordHasher = new PasswordHasher();
-const tokenService = new TokenService();
-
-const signUpUseCase = new SignUpUseCase(
-  userRepo,
-  workspaceRepo,
-  passwordHasher,
-  tokenService
+// ✅ Resolve dependencies from container
+const signUpUseCase = container.resolve<SignUpUseCase>(TOKENS.SignUpUseCase);
+const loginUseCase = container.resolve<LoginUseCase>(TOKENS.LoginUseCase);
+const getCurrentUserUseCase = container.resolve<GetCurrentUserUseCase>(
+  TOKENS.GetCurrentUserUseCase
 );
-const loginUseCase = new LoginUseCase(userRepo, passwordHasher, tokenService);
-const getCurrentUserUseCase = new GetCurrentUserUseCase(userRepo);
-const refreshTokenUseCase = new RefreshTokenUseCase(tokenService, userRepo);
+const refreshTokenUseCase = container.resolve<RefreshTokenUseCase>(
+  TOKENS.RefreshTokenUseCase
+);
 
 const authController = new AuthController(
   signUpUseCase,
@@ -70,7 +55,70 @@ const authController = new AuthController(
   refreshTokenUseCase
 );
 
-// Routes with rate limiting and validation
+/**
+ * @swagger
+ * /api/v1/auth/signup:
+ *   post:
+ *     summary: Create new user account
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *               - name
+ *               - workspaceName
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: user@example.com
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 8
+ *                 example: Test123!@#
+ *                 description: Must contain uppercase, lowercase, number, and special character
+ *               name:
+ *                 type: string
+ *                 minLength: 2
+ *                 maxLength: 100
+ *                 example: John Doe
+ *               workspaceName:
+ *                 type: string
+ *                 minLength: 2
+ *                 maxLength: 100
+ *                 example: My Workspace
+ *     responses:
+ *       201:
+ *         description: User created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *                     tokens:
+ *                       $ref: '#/components/schemas/Tokens'
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       409:
+ *         description: Email already exists
+ *       429:
+ *         description: Too many requests
+ */
 router.post(
   "/signup",
   authLimiter,
@@ -78,6 +126,48 @@ router.post(
   asyncHandler(authController.signup)
 );
 
+/**
+ * @swagger
+ * /api/v1/auth/login:
+ *   post:
+ *     summary: Authenticate user
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 format: password
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *                     tokens:
+ *                       $ref: '#/components/schemas/Tokens'
+ *       401:
+ *         description: Invalid credentials
+ *       429:
+ *         description: Too many requests
+ */
 router.post(
   "/login",
   authLimiter,
@@ -85,8 +175,61 @@ router.post(
   asyncHandler(authController.login)
 );
 
+/**
+ * @swagger
+ * /api/v1/auth/me:
+ *   get:
+ *     summary: Get current user
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Current user details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ */
 router.get("/me", authenticate, asyncHandler(authController.getCurrentUser));
 
+/**
+ * @swagger
+ * /api/v1/auth/refresh:
+ *   post:
+ *     summary: Refresh access token
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - refreshToken
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Tokens refreshed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   $ref: '#/components/schemas/Tokens'
+ *       401:
+ *         description: Invalid refresh token
+ */
 router.post(
   "/refresh",
   authLimiter,
@@ -94,6 +237,20 @@ router.post(
   asyncHandler(authController.refreshToken)
 );
 
+/**
+ * @swagger
+ * /api/v1/auth/logout:
+ *   post:
+ *     summary: Logout current user
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       204:
+ *         description: Logout successful
+ *       401:
+ *         description: Unauthorized
+ */
 router.post("/logout", authenticate, asyncHandler(authController.logout));
 
 export { router as authRoutes };

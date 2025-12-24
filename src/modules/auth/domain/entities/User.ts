@@ -1,5 +1,5 @@
-import { v4 as uuidv4 } from 'uuid';
-import { Role } from '../../../../config/constants';
+import { v4 as uuidv4 } from "uuid";
+import { Role } from "../../../../config/constants";
 
 export interface UserProps {
   id?: string;
@@ -8,6 +8,9 @@ export interface UserProps {
   name: string;
   role: Role;
   workspaceId: string;
+  emailVerified?: boolean;
+  verificationToken?: string | null;
+  verificationTokenExpires?: Date | null;
 }
 
 export class User {
@@ -17,6 +20,9 @@ export class User {
   public readonly name: string;
   public readonly role: Role;
   public readonly workspaceId: string;
+  public readonly emailVerified: boolean;
+  public readonly verificationToken: string | null;
+  public readonly verificationTokenExpires: Date | null;
 
   private constructor(props: UserProps) {
     this.id = props.id || uuidv4();
@@ -25,6 +31,9 @@ export class User {
     this.name = props.name;
     this.role = props.role;
     this.workspaceId = props.workspaceId;
+    this.emailVerified = props.emailVerified ?? false;
+    this.verificationToken = props.verificationToken ?? null;
+    this.verificationTokenExpires = props.verificationTokenExpires ?? null;
   }
 
   public static create(props: UserProps): User {
@@ -38,6 +47,7 @@ export class User {
       name: this.name,
       role: this.role,
       workspaceId: this.workspaceId,
+      emailVerified: this.emailVerified,
     };
   }
 }

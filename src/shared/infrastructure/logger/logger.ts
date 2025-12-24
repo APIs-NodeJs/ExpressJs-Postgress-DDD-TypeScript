@@ -1,6 +1,26 @@
 import winston from "winston";
 import { env, isProduction } from "../../../config/env";
 
+export interface ILogger {
+  info(message: string, meta?: Record<string, any>): void;
+  error(
+    message: string,
+    error?: Error | unknown,
+    meta?: Record<string, any>
+  ): void;
+  warn(message: string, meta?: Record<string, any>): void;
+  debug(message: string, meta?: Record<string, any>): void;
+  request(meta: {
+    requestId: string;
+    method: string;
+    url: string;
+    userId?: string;
+    ip?: string;
+    duration?: number;
+  }): void;
+  security(event: string, meta?: Record<string, any>): void;
+}
+
 const levels = {
   error: 0,
   warn: 1,
@@ -94,6 +114,18 @@ export class Logger {
     logger.debug(message, meta);
   }
 
+  /*************  ✨ Windsurf Command ⭐  *************/
+  /**
+   * Logs an HTTP request
+   * @param {Object} meta - Request metadata
+   * @param {string} meta.requestId - Request ID
+   * @param {string} meta.method - HTTP method
+   * @param {string} meta.url - URL requested
+   * @param {string} [meta.userId] - User ID of requester
+   * @param {string} [meta.ip] - IP address of requester
+   * @param {number} [meta.duration] - Request duration in milliseconds
+   */
+  /*******  de37a45a-250a-4e47-9418-1c239a495dc8  *******/
   static request(meta: {
     requestId: string;
     method: string;

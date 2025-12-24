@@ -1,9 +1,9 @@
-// src/modules/auth/infrastructure/repositories/WorkspaceRepository.ts
 import { Transaction } from "sequelize";
 import { WorkspaceModel } from "../../../../infrastructure/database/models/WorkspaceModel";
 import { Workspace } from "../../domain/entities/Workspace";
+import { IWorkspaceRepository } from "../../domain/repositories/IWorkspaceRepository";
 
-export class WorkspaceRepository {
+export class WorkspaceRepository implements IWorkspaceRepository {
   async findById(id: string): Promise<Workspace | null> {
     const model = await WorkspaceModel.findByPk(id);
     return model ? this.toDomain(model) : null;

@@ -1,18 +1,23 @@
-import { createApp } from './app';
-import { env } from './config/env';
-import { connectDatabase, disconnectDatabase } from './config/database';
+import "reflect-metadata"; // ✅ ADDED: Must be first import
+import { createApp } from "./app";
+import { env } from "./config/env";
+import { connectDatabase, disconnectDatabase } from "./config/database";
+import { setupContainer } from "./infrastructure/di/container"; // ✅ ADDED
 
 async function startServer(): Promise<void> {
   try {
+    // ✅ Setup DI container BEFORE everything else
+    setupContainer();
+
     await connectDatabase();
     const app = createApp();
 
     const server = app.listen(env.PORT, () => {
       console.log(`
 ╔════════════════════════════════════════════════════════╗
-║   🚀 Server Started Successfully!                     ║
-║   Port: ${env.PORT}                                   ║
-║   Health: http://localhost:${env.PORT}/health         ║
+║   🚀🚀 Server Started Successfully                    ║
+║   Port: ${env.PORT}                                    ║
+║   Health: http://localhost:${env.PORT}/health          ║
 ╚════════════════════════════════════════════════════════╝
       `);
     });
@@ -25,10 +30,10 @@ async function startServer(): Promise<void> {
       });
     };
 
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
   } catch (error) {
-    console.error('Failed to start server:', error);
+    console.error("Failed to start server:", error);
     process.exit(1);
   }
 }

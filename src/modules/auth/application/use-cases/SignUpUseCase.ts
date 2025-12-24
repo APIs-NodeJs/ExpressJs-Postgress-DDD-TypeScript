@@ -1,14 +1,16 @@
+import { injectable, inject } from "tsyringe";
 import { UseCase } from "../../../../shared/application/UseCase";
 import { Result } from "../../../../shared/application/Result";
 import { User } from "../../domain/entities/User";
 import { Workspace } from "../../domain/entities/Workspace";
-import { UserRepository } from "../../infrastructure/repositories/UserRepository";
-import { WorkspaceRepository } from "../../infrastructure/repositories/WorkspaceRepository";
-import { PasswordHasher } from "../../infrastructure/security/PasswordHasher";
-import { TokenService } from "../../infrastructure/security/TokenService";
+import { IUserRepository } from "../../domain/repositories/IUserRepository";
+import { IWorkspaceRepository } from "../../domain/repositories/IWorkspaceRepository";
+import { IPasswordHasher } from "../../domain/services/IPasswordHasher";
+import { ITokenService } from "../../domain/services/ITokenService";
 import { APP_CONSTANTS } from "../../../../config/constants";
 import { withTransaction } from "../../../../config/database";
 import { Logger } from "../../../../shared/infrastructure/logger/logger";
+import { TOKENS } from "../../../../infrastructure/di/tokens";
 
 export interface SignUpRequest {
   email: string;
@@ -32,12 +34,14 @@ export interface SignUpResponse {
   };
 }
 
+@injectable()
 export class SignUpUseCase implements UseCase<SignUpRequest, SignUpResponse> {
   constructor(
-    private userRepo: UserRepository,
-    private workspaceRepo: WorkspaceRepository,
-    private passwordHasher: PasswordHasher,
-    private tokenService: TokenService
+    @inject(TOKENS.IUserRepository) private userRepo: IUserRepository,
+    @inject(TOKENS.IWorkspaceRepository)
+    private workspaceRepo: IWorkspaceRepository,
+    @inject(TOKENS.IPasswordHasher) private passwordHasher: IPasswordHasher,
+    @inject(TOKENS.ITokenService) private tokenService: ITokenService
   ) {}
 
   async execute(req: SignUpRequest): Promise<Result<SignUpResponse>> {
@@ -57,22 +61,19 @@ export class SignUpUseCase implements UseCase<SignUpRequest, SignUpResponse> {
         return Result.fail("Email already exists");
       }
 
-      // Use transaction to ensure atomicity
+      // Use transaction
       const result = await withTransaction(async (transaction) => {
-        // Hash password
         const hashedPassword = await this.passwordHasher.hash(req.password);
 
-        // Create workspace first
         const workspace = Workspace.create({
           name: req.workspaceName.trim(),
-          ownerId: "temp", // Will be updated
+          ownerId: "temp",
         });
         const createdWorkspace = await this.workspaceRepo.create(
           workspace,
           transaction
         );
 
-        // Create user with workspace reference
         const user = User.create({
           email: req.email.toLowerCase().trim(),
           password: hashedPassword,
@@ -82,7 +83,6 @@ export class SignUpUseCase implements UseCase<SignUpRequest, SignUpResponse> {
         });
         const createdUser = await this.userRepo.create(user, transaction);
 
-        // Update workspace owner
         await this.workspaceRepo.updateOwner(
           createdWorkspace.id,
           createdUser.id,
@@ -92,11 +92,11 @@ export class SignUpUseCase implements UseCase<SignUpRequest, SignUpResponse> {
         return { user: createdUser, workspace: createdWorkspace };
       });
 
-      // Generate tokens
       const tokens = this.tokenService.generateTokenPair({
         userId: result.user.id,
         workspaceId: result.user.workspaceId,
         email: result.user.email,
+        role: result.user.role,
       });
 
       Logger.info("User signed up successfully", {
@@ -125,39 +125,27 @@ export class SignUpUseCase implements UseCase<SignUpRequest, SignUpResponse> {
         error: "Password must be at least 8 characters",
       };
     }
-
-    // Check for at least one uppercase letter
     if (!/[A-Z]/.test(password)) {
       return {
         isValid: false,
-        error: "Password must contain at least one uppercase letter",
+        error: "Password must contain uppercase letter",
       };
     }
-
-    // Check for at least one lowercase letter
     if (!/[a-z]/.test(password)) {
       return {
         isValid: false,
-        error: "Password must contain at least one lowercase letter",
+        error: "Password must contain lowercase letter",
       };
     }
-
-    // Check for at least one number
     if (!/\d/.test(password)) {
-      return {
-        isValid: false,
-        error: "Password must contain at least one number",
-      };
+      return { isValid: false, error: "Password must contain number" };
     }
-
-    // Check for at least one special character
     if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
       return {
         isValid: false,
-        error: "Password must contain at least one special character",
+        error: "Password must contain special character",
       };
     }
-
     return { isValid: true };
   }
 }
