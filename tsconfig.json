@@ -12,8 +12,8 @@
     "resolveJsonModule": true,
     "moduleResolution": "node",
     "sourceMap": true,
-    "experimentalDecorators": true, // ✅ ADDED
-    "emitDecoratorMetadata": true // ✅ ADDED
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
