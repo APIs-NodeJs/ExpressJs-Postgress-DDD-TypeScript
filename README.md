@@ -699,3 +699,54 @@ npm run lint     # Lint code
 
 **Version**: 1.0.0  
 **Last Updated**: December 2025
+
+Run these commands in order:
+
+1. Install test dependencies:
+   npm install --save-dev jest @types/jest ts-jest supertest @types/supertest
+
+2. Create test database (Docker):
+   docker-compose -f docker-compose.test.yml up -d
+
+3. Run tests:
+   npm test
+
+4. Run with coverage:
+   npm run test:coverage
+
+5. Run specific test:
+   npm test -- User.test.ts
+
+6. Watch mode:
+   npm run test:watch
+
+7. Install dependencies:
+   npm install @sentry/node @sentry/profiling-node umzug
+   pnpm install --save-dev sequelize-cli
+
+8. Set up Sentry:
+
+## ************\*\*\*\*************
+
+- Sign up at https://sentry.io
+- Create new project
+- Copy DSN
+- Add to .env: SENTRY_DSN=https://...
+
+3. Run migrations:
+   npx sequelize-cli db:migrate
+
+4. Check migration status:
+   npx sequelize-cli db:migrate:status
+
+5. Rollback last migration:
+   npx sequelize-cli db:migrate:undo
+
+6. Create new migration:
+   npm run db:migration:create -- add-email-verification
+
+7. View metrics (after starting server):
+   curl http://localhost:3000/metrics
+
+8. View Prometheus metrics:
+   curl http://localhost:3000/metrics/prometheus

@@ -10,7 +10,6 @@ const config: Options = {
   dialect: "postgres",
   logging: env.NODE_ENV === "development" ? console.log : false,
 
-  // Optimized connection pooling
   pool: {
     max: 20,
     min: 5,
@@ -19,7 +18,6 @@ const config: Options = {
     evict: 1000,
   },
 
-  // Connection retry configuration
   retry: {
     max: 3,
     timeout: 3000,
@@ -43,11 +41,8 @@ export async function connectDatabase(): Promise<void> {
       await sequelize.authenticate();
       console.log("✅ Database connected successfully");
 
-      // NEVER use sync in production - use migrations instead
-      if (env.NODE_ENV === "development") {
-        console.warn("⚠️  Using sync() - not recommended for production");
-        await sequelize.sync({ alter: false });
-      }
+      // ❌ REMOVED: No more sync() in any environment
+      // All schema changes must go through migrations
 
       return;
     } catch (error) {
@@ -63,7 +58,6 @@ export async function connectDatabase(): Promise<void> {
         );
       }
 
-      // Wait before retrying
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
   }
@@ -79,7 +73,6 @@ export async function disconnectDatabase(): Promise<void> {
   }
 }
 
-// Health check function
 export async function checkDatabaseHealth(): Promise<boolean> {
   try {
     await sequelize.authenticate();
@@ -90,7 +83,6 @@ export async function checkDatabaseHealth(): Promise<boolean> {
   }
 }
 
-// Transaction helper
 export async function withTransaction<T>(
   callback: (transaction: any) => Promise<T>
 ): Promise<T> {
