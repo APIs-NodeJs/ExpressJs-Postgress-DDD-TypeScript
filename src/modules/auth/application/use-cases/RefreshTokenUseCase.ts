@@ -1,25 +1,34 @@
-import { UseCase } from '../../../../shared/application/UseCase';
-import { Result } from '../../../../shared/application/Result';
-import { TokenService } from '../../infrastructure/security/TokenService';
-import { UserRepository } from '../../infrastructure/repositories/UserRepository';
+import { Result } from "../../../../shared/application/Result";
 
-export class RefreshTokenUseCase implements UseCase<{ refreshToken: string }, any> {
-  constructor(private tokenService: TokenService, private userRepo: UserRepository) {}
-
+export class RefreshTokenUseCase {
+  tokenService: any;
+  tokenBlacklistService: any;
+  userRepo: any;
   async execute(req: { refreshToken: string }): Promise<Result<any>> {
-    try {
-      const payload = this.tokenService.verifyRefreshToken(req.refreshToken);
-      const user = await this.userRepo.findById(payload.userId);
-      if (!user) return Result.fail('User not found');
+    const payload = this.tokenService.verifyRefreshToken(req.refreshToken);
 
-      const tokens = this.tokenService.generateTokenPair({
-        userId: user.id,
-        workspaceId: user.workspaceId,
-        email: user.email,
-      });
-      return Result.ok(tokens);
-    } catch {
-      return Result.fail('Invalid refresh token');
+    // ⚠️ MISSING: Check if token is blacklisted
+    const isBlacklisted = await this.tokenBlacklistService.isBlacklisted(
+      req.refreshToken
+    );
+    if (isBlacklisted) {
+      return Result.fail("Token has been revoked");
     }
+
+    // ⚠️ MISSING: Implement refresh token rotation
+    // Invalidate old refresh token and issue new pair
+    await this.tokenBlacklistService.blacklist(req.refreshToken);
+
+    const user = await this.userRepo.findById(payload.userId);
+    if (!user) return Result.fail("User not found");
+
+    const tokens = this.tokenService.generateTokenPair({
+      userId: user.id,
+      workspaceId: user.workspaceId,
+      email: user.email,
+      role: user.role,
+    });
+
+    return Result.ok(tokens);
   }
 }

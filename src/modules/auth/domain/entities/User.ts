@@ -13,6 +13,24 @@ export interface UserProps {
   verificationTokenExpires?: Date | null;
 }
 
+// Add domain events
+export abstract class DomainEvent {
+  public readonly occurredAt: Date;
+  constructor() {
+    this.occurredAt = new Date();
+  }
+}
+
+export class UserCreatedEvent extends DomainEvent {
+  constructor(
+    public readonly userId: string,
+    public readonly email: string,
+    public readonly workspaceId: string
+  ) {
+    super();
+  }
+}
+
 export class User {
   public readonly id: string;
   public readonly email: string;
@@ -37,7 +55,11 @@ export class User {
   }
 
   public static create(props: UserProps): User {
-    return new User(props);
+    const user = new User(props);
+    user.addDomainEvent(
+      new UserCreatedEvent(user.id, user.email, user.workspaceId)
+    );
+    return user;
   }
 
   public toDTO() {
@@ -49,5 +71,19 @@ export class User {
       workspaceId: this.workspaceId,
       emailVerified: this.emailVerified,
     };
+  }
+
+  private _domainEvents: DomainEvent[] = [];
+
+  private addDomainEvent(event: DomainEvent): void {
+    this._domainEvents.push(event);
+  }
+
+  public getDomainEvents(): DomainEvent[] {
+    return [...this._domainEvents];
+  }
+
+  public clearDomainEvents(): void {
+    this._domainEvents = [];
   }
 }
