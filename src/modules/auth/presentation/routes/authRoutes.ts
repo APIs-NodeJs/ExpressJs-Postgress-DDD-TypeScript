@@ -38,22 +38,25 @@ const authLimiter = rateLimit({
   },
 });
 
-// ✅ Resolve dependencies from container
-const signUpUseCase = container.resolve<SignUpUseCase>(TOKENS.SignUpUseCase);
-const loginUseCase = container.resolve<LoginUseCase>(TOKENS.LoginUseCase);
-const getCurrentUserUseCase = container.resolve<GetCurrentUserUseCase>(
-  TOKENS.GetCurrentUserUseCase
-);
-const refreshTokenUseCase = container.resolve<RefreshTokenUseCase>(
-  TOKENS.RefreshTokenUseCase
-);
+// ✅ FIX: Lazy initialization - resolve dependencies when routes are actually used
+// This ensures the container is set up before we try to resolve
+const getAuthController = () => {
+  const signUpUseCase = container.resolve<SignUpUseCase>(TOKENS.SignUpUseCase);
+  const loginUseCase = container.resolve<LoginUseCase>(TOKENS.LoginUseCase);
+  const getCurrentUserUseCase = container.resolve<GetCurrentUserUseCase>(
+    TOKENS.GetCurrentUserUseCase
+  );
+  const refreshTokenUseCase = container.resolve<RefreshTokenUseCase>(
+    TOKENS.RefreshTokenUseCase
+  );
 
-const authController = new AuthController(
-  signUpUseCase,
-  loginUseCase,
-  getCurrentUserUseCase,
-  refreshTokenUseCase
-);
+  return new AuthController(
+    signUpUseCase,
+    loginUseCase,
+    getCurrentUserUseCase,
+    refreshTokenUseCase
+  );
+};
 
 /**
  * @swagger
@@ -123,7 +126,7 @@ router.post(
   "/signup",
   authLimiter,
   validate(signupSchema),
-  asyncHandler(authController.signup)
+  asyncHandler((req, res, next) => getAuthController().signup(req, res, next))
 );
 
 /**
@@ -172,7 +175,7 @@ router.post(
   "/login",
   authLimiter,
   validate(loginSchema),
-  asyncHandler(authController.login)
+  asyncHandler((req, res, next) => getAuthController().login(req, res, next))
 );
 
 /**
@@ -198,7 +201,13 @@ router.post(
  *       404:
  *         description: User not found
  */
-router.get("/me", authenticate, asyncHandler(authController.getCurrentUser));
+router.get(
+  "/me",
+  authenticate,
+  asyncHandler((req, res, next) =>
+    getAuthController().getCurrentUser(req, res, next)
+  )
+);
 
 /**
  * @swagger
@@ -234,7 +243,9 @@ router.post(
   "/refresh",
   authLimiter,
   validate(refreshTokenSchema),
-  asyncHandler(authController.refreshToken)
+  asyncHandler((req, res, next) =>
+    getAuthController().refreshToken(req, res, next)
+  )
 );
 
 /**
@@ -251,6 +262,10 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.post("/logout", authenticate, asyncHandler(authController.logout));
+router.post(
+  "/logout",
+  authenticate,
+  asyncHandler((req, res, next) => getAuthController().logout(req, res, next))
+);
 
 export { router as authRoutes };
