@@ -75,6 +75,30 @@ export class User extends AggregateRoot<string> {
     this.props = props;
   }
 
+  // FIXED: Added method to update profile
+  public updateProfile(firstName?: string, lastName?: string): Result<void> {
+    if (this.props.status === UserStatus.DELETED) {
+      return Result.fail<void>("Cannot update profile for deleted user");
+    }
+
+    if (firstName !== undefined) {
+      if (firstName.trim().length === 0 || firstName.length > 100) {
+        return Result.fail<void>("Invalid first name");
+      }
+      this.props.firstName = firstName.trim();
+    }
+
+    if (lastName !== undefined) {
+      if (lastName.trim().length === 0 || lastName.length > 100) {
+        return Result.fail<void>("Invalid last name");
+      }
+      this.props.lastName = lastName.trim();
+    }
+
+    this.touch();
+    return Result.ok();
+  }
+
   public changePassword(newPassword: Password): Result<void> {
     if (this.props.status !== UserStatus.ACTIVE) {
       return Result.fail<void>("Cannot change password for inactive user");
@@ -128,6 +152,18 @@ export class User extends AggregateRoot<string> {
     return Result.ok();
   }
 
+  // FIXED: Added soft delete method
+  public delete(): Result<void> {
+    if (this.props.status === UserStatus.DELETED) {
+      return Result.fail<void>("User already deleted");
+    }
+
+    this.props.status = UserStatus.DELETED;
+    this.touch();
+
+    return Result.ok();
+  }
+
   public recordLogin(ipAddress?: string): void {
     this.addDomainEvent(
       new UserLoggedInEvent(this.id, this.props.email.value, ipAddress)
@@ -138,9 +174,24 @@ export class User extends AggregateRoot<string> {
     email: Email,
     password: Password,
     workspaceId: string,
-    id?: string
+    id?: string,
+    firstName?: string,
+    lastName?: string
   ): Result<User> {
     const userId = id || UserId.create().getValue().value;
+
+    // FIXED: Added validation for firstName and lastName
+    if (firstName !== undefined) {
+      if (firstName.trim().length === 0 || firstName.length > 100) {
+        return Result.fail<User>("Invalid first name");
+      }
+    }
+
+    if (lastName !== undefined) {
+      if (lastName.trim().length === 0 || lastName.length > 100) {
+        return Result.fail<User>("Invalid last name");
+      }
+    }
 
     const props: UserProps = {
       email,
@@ -148,6 +199,8 @@ export class User extends AggregateRoot<string> {
       workspaceId,
       status: UserStatus.PENDING,
       emailVerified: false,
+      firstName: firstName?.trim(),
+      lastName: lastName?.trim(),
     };
 
     const user = new User(userId, props);

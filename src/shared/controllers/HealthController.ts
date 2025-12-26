@@ -1,36 +1,18 @@
 import { Request, Response } from "express";
-import { sequelize } from "../../config/database";
+import { checkDatabaseHealth, sequelize } from "../../config/database";
 import { cacheService } from "../infrastructure/cache/CacheService";
 
 export class HealthController {
-  async check(req: Request, res: Response): Promise<void> {
-    const health = {
-      status: "ok",
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment: process.env.NODE_ENV,
-      services: {
-        database: "unknown",
-        cache: "unknown",
-      },
-    };
+  // Update HealthController to use new methods
+  async check(_req: Request, res: Response): Promise<void> {
+    const dbHealth = await checkDatabaseHealth();
+    const cacheHealth = await cacheService.ping();
 
-    // Check database
-    try {
-      await sequelize.authenticate();
-      health.services.database = "healthy";
-    } catch (error) {
-      health.services.database = "unhealthy";
-      health.status = "degraded";
-    }
-
-    // Check cache
-    if (cacheService) {
-      health.services.cache = "healthy";
-    }
-
-    const statusCode = health.status === "ok" ? 200 : 503;
-    res.status(statusCode).json(health);
+    res.json({
+      status: dbHealth.healthy ? "ok" : "degraded",
+      database: dbHealth,
+      cache: cacheHealth,
+    });
   }
 
   async readiness(req: Request, res: Response): Promise<void> {

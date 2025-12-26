@@ -15,6 +15,9 @@ module.exports = {
       owner_id: {
         type: Sequelize.UUID,
         allowNull: false,
+        // FIXED: Added comment explaining why no FK constraint
+        // Note: Cannot add FK to users table as it doesn't exist yet
+        // The constraint will be added in a separate migration after users table is created
       },
       status: {
         type: Sequelize.ENUM("ACTIVE", "SUSPENDED", "DELETED"),

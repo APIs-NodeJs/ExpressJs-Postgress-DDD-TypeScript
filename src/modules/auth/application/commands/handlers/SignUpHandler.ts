@@ -5,6 +5,7 @@ import { IUserRepository } from "../../../domain/repositories/IUserRepository";
 import { IWorkspaceRepository } from "../../../domain/repositories/IWorkspaceRepository";
 import { Email } from "../../../domain/value-objects/Email.vo";
 import { Password } from "../../../domain/value-objects/Password.vo";
+import { UserId } from "../../../domain/value-objects/UserId.vo";
 import { User } from "../../../domain/aggregates/User.aggregate";
 import { Workspace } from "../../../domain/aggregates/Workspace.aggregate";
 import { UnitOfWork } from "../../../../../core/infrastructure/persistence/UnitOfWork";
@@ -71,13 +72,16 @@ export class SignUpHandler implements CommandHandler<
       );
       const hashedPasswordVO = Password.createHashed(hashedPassword).getValue();
 
-      // Step 6: Start transaction
+      // Step 6: Generate user ID first (FIXED)
+      const userId = UserId.create().getValue().value;
+
+      // Step 7: Start transaction
       await this.unitOfWork.start();
 
       try {
-        // Step 7: Create workspace
+        // Step 8: Create workspace with proper owner ID (FIXED)
         const workspaceName = `${command.firstName || email.value.split("@")[0]}'s Workspace`;
-        const workspaceOrError = Workspace.create(workspaceName, "");
+        const workspaceOrError = Workspace.create(workspaceName, userId);
 
         if (workspaceOrError.isFailure) {
           throw new ValidationError(workspaceOrError.error!);
@@ -86,20 +90,37 @@ export class SignUpHandler implements CommandHandler<
         const workspace = workspaceOrError.getValue();
         await this.workspaceRepository.save(workspace);
 
-        // Step 8: Create user
-        const userOrError = User.create(email, hashedPasswordVO, workspace.id);
+        // Step 9: Create user with generated ID (FIXED)
+        const userOrError = User.create(
+          email,
+          hashedPasswordVO,
+          workspace.id,
+          userId
+        );
 
         if (userOrError.isFailure) {
           throw new ValidationError(userOrError.error!);
         }
 
         const user = userOrError.getValue();
+
+        // Set optional fields if provided
+        if (command.firstName || command.lastName) {
+          Object.assign(user, {
+            props: {
+              ...user["props"],
+              firstName: command.firstName,
+              lastName: command.lastName,
+            },
+          });
+        }
+
         await this.userRepository.save(user);
 
-        // Step 9: Commit transaction
+        // Step 10: Commit transaction
         await this.unitOfWork.commit();
 
-        // Step 10: Publish domain events
+        // Step 11: Publish domain events
         await this.eventPublisher.publishAll([
           ...workspace.domainEvents,
           ...user.domainEvents,
