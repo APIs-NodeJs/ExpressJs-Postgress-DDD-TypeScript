@@ -4,7 +4,11 @@ import { validate, ValidationError } from "class-validator";
 
 export class ValidationMiddleware {
   static validate(dtoClass: any) {
-    return async (req: Request, res: Response, next: NextFunction) => {
+    return async (
+      req: Request,
+      res: Response,
+      next: NextFunction
+    ): Promise<void> => {
       const dtoObject = plainToClass(dtoClass, req.body);
       const errors: ValidationError[] = await validate(dtoObject);
 
@@ -15,10 +19,11 @@ export class ValidationMiddleware {
           })
           .flat();
 
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           errors: messages,
         });
+        return;
       }
 
       req.body = dtoObject;
