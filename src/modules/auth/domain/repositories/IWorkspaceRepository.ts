@@ -1,17 +1,7 @@
-import { Workspace } from "../entities/Workspace";
+import { Workspace } from "../aggregates/Workspace.aggregate";
+import { Repository } from "../../../../core/infrastructure/persistence/Repository";
 
-export interface IWorkspaceRepository {
-  findById(id: string): Promise<Workspace | null>;
-  create(workspace: Workspace, transaction?: any): Promise<Workspace>;
-  updateOwner(
-    workspaceId: string,
-    ownerId: string,
-    transaction?: any
-  ): Promise<void>;
-  update(
-    id: string,
-    updates: Partial<Workspace>,
-    transaction?: any
-  ): Promise<Workspace | null>;
-  delete(id: string, transaction?: any): Promise<boolean>;
+export interface IWorkspaceRepository extends Repository<Workspace> {
+  findByOwnerId(ownerId: string): Promise<Workspace[]>;
+  existsByName(name: string): Promise<boolean>;
 }
