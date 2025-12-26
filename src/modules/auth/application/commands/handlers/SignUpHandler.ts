@@ -11,6 +11,12 @@ import { UnitOfWork } from "../../../../../core/infrastructure/persistence/UnitO
 import { EventPublisher } from "../../../../../core/infrastructure/messaging/EventPublisher";
 import { BcryptHasher } from "../../../infrastructure/security/BcryptHasher";
 import { PasswordPolicyService } from "../../../domain/services/PasswordPolicy.service";
+import { logger } from "../../../../../shared/utils/logger";
+import {
+  AppError,
+  ConflictError,
+  ValidationError,
+} from "../../../../../shared/errors/AppError";
 
 interface SignUpResponse {
   userId: string;
@@ -18,9 +24,10 @@ interface SignUpResponse {
   email: string;
 }
 
-export class SignUpHandler
-  implements CommandHandler<SignUpCommand, SignUpResponse>
-{
+export class SignUpHandler implements CommandHandler<
+  SignUpCommand,
+  SignUpResponse
+> {
   constructor(
     private readonly userRepository: IUserRepository,
     private readonly workspaceRepository: IWorkspaceRepository,
@@ -30,84 +37,111 @@ export class SignUpHandler
   ) {}
 
   async execute(command: SignUpCommand): Promise<Result<SignUpResponse>> {
-    // Validate email
-    const emailOrError = Email.create(command.email);
-    if (emailOrError.isFailure) {
-      return Result.fail<SignUpResponse>(emailOrError.error!);
-    }
-    const email = emailOrError.getValue();
-
-    // Check if user already exists
-    const emailExists = await this.userRepository.existsByEmail(email);
-    if (emailExists) {
-      return Result.fail<SignUpResponse>("User with this email already exists");
-    }
-
-    // Validate password policy
-    const policyCheck = PasswordPolicyService.validate(command.password);
-    if (policyCheck.isFailure) {
-      return Result.fail<SignUpResponse>(policyCheck.error!);
-    }
-
-    // Create password value object
-    const passwordOrError = Password.create(command.password);
-    if (passwordOrError.isFailure) {
-      return Result.fail<SignUpResponse>(passwordOrError.error!);
-    }
-
-    // Hash password
-    const hashedPassword = await this.hasher.hash(
-      passwordOrError.getValue().value
-    );
-    const hashedPasswordVO = Password.createHashed(hashedPassword).getValue();
+    const startTime = Date.now();
 
     try {
-      // Start transaction
+      // Step 1: Validate email
+      const emailOrError = Email.create(command.email);
+      if (emailOrError.isFailure) {
+        throw new ValidationError(emailOrError.error!);
+      }
+      const email = emailOrError.getValue();
+
+      // Step 2: Check if user already exists
+      const emailExists = await this.userRepository.existsByEmail(email);
+      if (emailExists) {
+        throw new ConflictError("User with this email already exists");
+      }
+
+      // Step 3: Validate password policy
+      const policyCheck = PasswordPolicyService.validate(command.password);
+      if (policyCheck.isFailure) {
+        throw new ValidationError(policyCheck.error!);
+      }
+
+      // Step 4: Create password value object
+      const passwordOrError = Password.create(command.password);
+      if (passwordOrError.isFailure) {
+        throw new ValidationError(passwordOrError.error!);
+      }
+
+      // Step 5: Hash password
+      const hashedPassword = await this.hasher.hash(
+        passwordOrError.getValue().value
+      );
+      const hashedPasswordVO = Password.createHashed(hashedPassword).getValue();
+
+      // Step 6: Start transaction
       await this.unitOfWork.start();
 
-      // Create workspace
-      const workspaceName = `${
-        command.firstName || email.value.split("@")[0]
-      }'s Workspace`;
-      const workspaceOrError = Workspace.create(workspaceName, "");
-      if (workspaceOrError.isFailure) {
+      try {
+        // Step 7: Create workspace
+        const workspaceName = `${command.firstName || email.value.split("@")[0]}'s Workspace`;
+        const workspaceOrError = Workspace.create(workspaceName, "");
+
+        if (workspaceOrError.isFailure) {
+          throw new ValidationError(workspaceOrError.error!);
+        }
+
+        const workspace = workspaceOrError.getValue();
+        await this.workspaceRepository.save(workspace);
+
+        // Step 8: Create user
+        const userOrError = User.create(email, hashedPasswordVO, workspace.id);
+
+        if (userOrError.isFailure) {
+          throw new ValidationError(userOrError.error!);
+        }
+
+        const user = userOrError.getValue();
+        await this.userRepository.save(user);
+
+        // Step 9: Commit transaction
+        await this.unitOfWork.commit();
+
+        // Step 10: Publish domain events
+        await this.eventPublisher.publishAll([
+          ...workspace.domainEvents,
+          ...user.domainEvents,
+        ]);
+
+        workspace.clearEvents();
+        user.clearEvents();
+
+        const duration = Date.now() - startTime;
+
+        logger.info("User signed up successfully", {
+          userId: user.id,
+          email: user.email.value,
+          workspaceId: workspace.id,
+          duration: `${duration}ms`,
+        });
+
+        return Result.ok({
+          userId: user.id,
+          workspaceId: workspace.id,
+          email: user.email.value,
+        });
+      } catch (error) {
         await this.unitOfWork.rollback();
-        return Result.fail<SignUpResponse>(workspaceOrError.error!);
+        throw error;
       }
-      const workspace = workspaceOrError.getValue();
-
-      await this.workspaceRepository.save(workspace);
-
-      // Create user
-      const userOrError = User.create(email, hashedPasswordVO, workspace.id);
-      if (userOrError.isFailure) {
-        await this.unitOfWork.rollback();
-        return Result.fail<SignUpResponse>(userOrError.error!);
-      }
-      const user = userOrError.getValue();
-
-      await this.userRepository.save(user);
-
-      // Commit transaction
-      await this.unitOfWork.commit();
-
-      // Publish domain events
-      await this.eventPublisher.publishAll([
-        ...workspace.domainEvents,
-        ...user.domainEvents,
-      ]);
-
-      workspace.clearEvents();
-      user.clearEvents();
-
-      return Result.ok({
-        userId: user.id,
-        workspaceId: workspace.id,
-        email: user.email.value,
-      });
     } catch (error) {
-      await this.unitOfWork.rollback();
-      return Result.fail<SignUpResponse>("Failed to create user");
+      const duration = Date.now() - startTime;
+
+      logger.error("SignUp failed", {
+        error: error instanceof Error ? error.message : "Unknown error",
+        email: command.email,
+        duration: `${duration}ms`,
+      });
+
+      // Re-throw AppErrors as-is
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      // Wrap unexpected errors
+      throw new Error("Failed to create user");
     }
   }
 }

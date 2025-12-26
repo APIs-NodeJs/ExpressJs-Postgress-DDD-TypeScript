@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { AuthController } from "../http/controllers/AuthController";
 import { AuthMiddleware } from "../http/middlewares/AuthMiddleware";
-import { ValidationMiddleware } from "../http/middlewares/ValidationMiddleware";
-import { SignUpDto } from "../http/dto/SignUpDto";
-import { LoginDto } from "../http/dto/LoginDto";
+import { validateRequest } from "../../../../shared/middlewares/validateRequest";
+import { createRateLimiter } from "../../../../shared/middlewares/rateLimiter";
+import { signUpSchema, loginSchema } from "../http/validators/authSchemas";
 
 export function createAuthRoutes(
   authController: AuthController,
@@ -11,22 +11,37 @@ export function createAuthRoutes(
 ): Router {
   const router = Router();
 
-  // Public routes
+  // Rate limiters
+  const authRateLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5,
+    message: "Too many authentication attempts",
+  });
+
+  const apiRateLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+  });
+
+  // Public routes with strict rate limiting
   router.post(
     "/signup",
-    ValidationMiddleware.validate(SignUpDto),
+    authRateLimiter,
+    validateRequest(signUpSchema),
     authController.signUp
   );
 
   router.post(
     "/login",
-    ValidationMiddleware.validate(LoginDto),
+    authRateLimiter,
+    validateRequest(loginSchema),
     authController.login
   );
 
-  // Protected routes
+  // Protected routes with standard rate limiting
   router.get(
     "/profile",
+    apiRateLimiter,
     authMiddleware.authenticate(),
     authController.getProfile
   );

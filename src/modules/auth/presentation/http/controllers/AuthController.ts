@@ -1,10 +1,15 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { AuthApplicationService } from "../../../application/services/AuthApplicationService";
+import { logger } from "../../../../../shared/utils/logger";
 
 export class AuthController {
   constructor(private readonly authService: AuthApplicationService) {}
 
-  signUp = async (req: Request, res: Response): Promise<void> => {
+  signUp = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
     try {
       const { email, password, firstName, lastName } = req.body;
 
@@ -16,14 +21,24 @@ export class AuthController {
       );
 
       if (result.isFailure) {
+        // This shouldn't happen with new error handling, but kept for safety
         res.status(400).json({
           success: false,
-          error: result.error,
+          error: {
+            code: "SIGNUP_FAILED",
+            message: result.error,
+          },
+          requestId: req.id,
         });
         return;
       }
 
       const data = result.getValue();
+
+      logger.info("User signup successful", {
+        userId: data.userId,
+        requestId: req.id,
+      });
 
       res.status(201).json({
         success: true,
@@ -33,17 +48,19 @@ export class AuthController {
           email: data.email,
         },
         message: "User created successfully",
+        requestId: req.id,
       });
     } catch (error) {
-      console.error("[AuthController] SignUp error:", error);
-      res.status(500).json({
-        success: false,
-        error: "Internal server error",
-      });
+      // Pass to error handler middleware
+      next(error);
     }
   };
 
-  login = async (req: Request, res: Response): Promise<void> => {
+  login = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
     try {
       const { email, password } = req.body;
       const ipAddress = req.ip;
@@ -53,12 +70,22 @@ export class AuthController {
       if (result.isFailure) {
         res.status(401).json({
           success: false,
-          error: result.error,
+          error: {
+            code: "LOGIN_FAILED",
+            message: result.error,
+          },
+          requestId: req.id,
         });
         return;
       }
 
       const data = result.getValue();
+
+      logger.info("User login successful", {
+        userId: data.userId,
+        requestId: req.id,
+        ipAddress,
+      });
 
       res.status(200).json({
         success: true,
@@ -71,28 +98,25 @@ export class AuthController {
           },
         },
         message: "Login successful",
+        requestId: req.id,
       });
     } catch (error) {
-      console.error("[AuthController] Login error:", error);
-      res.status(500).json({
-        success: false,
-        error: "Internal server error",
-      });
+      next(error);
     }
   };
 
-  getProfile = async (req: Request, res: Response): Promise<void> => {
+  getProfile = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
     try {
       const userId = (req as any).user.userId;
 
       const result = await this.authService.getUser(userId);
 
       if (result.isFailure) {
-        res.status(404).json({
-          success: false,
-          error: result.error,
-        });
-        return;
+        throw new NotFoundError("User");
       }
 
       const user = result.getValue();
@@ -109,13 +133,10 @@ export class AuthController {
           lastName: user.lastName,
           createdAt: user.createdAt,
         },
+        requestId: req.id,
       });
     } catch (error) {
-      console.error("[AuthController] GetProfile error:", error);
-      res.status(500).json({
-        success: false,
-        error: "Internal server error",
-      });
+      next(error);
     }
   };
 }
