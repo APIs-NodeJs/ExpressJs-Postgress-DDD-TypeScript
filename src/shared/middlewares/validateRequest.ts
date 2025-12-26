@@ -6,7 +6,11 @@ export const validateRequest = (schema: {
   query?: ZodSchema;
   params?: ZodSchema;
 }) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
     try {
       if (schema.body) {
         req.body = await schema.body.parseAsync(req.body);
@@ -28,7 +32,7 @@ export const validateRequest = (schema: {
           message: err.message,
         }));
 
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: {
             code: "VALIDATION_ERROR",

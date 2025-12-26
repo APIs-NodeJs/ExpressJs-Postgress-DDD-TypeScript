@@ -6,7 +6,7 @@ export const errorHandler = (
   err: Error,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ) => {
   if (err instanceof AppError) {
     logger.error("Operational error", {
@@ -15,7 +15,7 @@ export const errorHandler = (
       statusCode: err.statusCode,
       path: req.path,
       method: req.method,
-      requestId: req.id,
+      requestId: (req as any).id,
     });
 
     return res.status(err.statusCode).json({
@@ -24,7 +24,7 @@ export const errorHandler = (
         code: err.code,
         message: err.message,
       },
-      requestId: req.id,
+      requestId: (req as any).id,
     });
   }
 
@@ -34,7 +34,7 @@ export const errorHandler = (
     stack: err.stack,
     path: req.path,
     method: req.method,
-    requestId: req.id,
+    requestId: (req as any).id,
   });
 
   return res.status(500).json({
@@ -46,6 +46,6 @@ export const errorHandler = (
           ? "An unexpected error occurred"
           : err.message,
     },
-    requestId: req.id,
+    requestId: (req as any).id,
   });
 };

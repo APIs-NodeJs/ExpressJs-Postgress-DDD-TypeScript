@@ -1,17 +1,6 @@
 import rateLimit from "express-rate-limit";
-import RedisStore from "rate-limit-redis";
-import { createClient } from "redis";
 import { config } from "../../config/env.config";
-
-const redisClient = config.REDIS_HOST
-  ? createClient({
-      socket: {
-        host: config.REDIS_HOST,
-        port: config.REDIS_PORT,
-      },
-      password: config.REDIS_PASSWORD,
-    })
-  : null;
+import { logger } from "../utils/logger";
 
 export const createRateLimiter = (options?: {
   windowMs?: number;
@@ -24,13 +13,7 @@ export const createRateLimiter = (options?: {
     message: options?.message || "Too many requests, please try again later",
     standardHeaders: true,
     legacyHeaders: false,
-    store: redisClient
-      ? new RedisStore({
-          client: redisClient,
-          prefix: "rl:",
-        })
-      : undefined,
-    handler: (req, res) => {
+    handler: (req: any, res: any) => {
       logger.warn("Rate limit exceeded", {
         ip: req.ip,
         path: req.path,

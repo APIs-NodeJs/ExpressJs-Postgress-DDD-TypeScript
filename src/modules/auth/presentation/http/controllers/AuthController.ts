@@ -1,6 +1,17 @@
+// src/modules/auth/presentation/http/controllers/AuthController.ts
 import { Request, Response, NextFunction } from "express";
 import { AuthApplicationService } from "../../../application/services/AuthApplicationService";
 import { logger } from "../../../../../shared/utils/logger";
+import { NotFoundError } from "../../../../../shared/errors/AppError";
+
+interface AuthenticatedRequest extends Request {
+  id: string;
+  user: {
+    userId: string;
+    email: string;
+    workspaceId: string;
+  };
+}
 
 export class AuthController {
   constructor(private readonly authService: AuthApplicationService) {}
@@ -12,6 +23,7 @@ export class AuthController {
   ): Promise<void> => {
     try {
       const { email, password, firstName, lastName } = req.body;
+      const extReq = req as AuthenticatedRequest;
 
       const result = await this.authService.signUp(
         email,
@@ -21,14 +33,13 @@ export class AuthController {
       );
 
       if (result.isFailure) {
-        // This shouldn't happen with new error handling, but kept for safety
         res.status(400).json({
           success: false,
           error: {
             code: "SIGNUP_FAILED",
             message: result.error,
           },
-          requestId: req.id,
+          requestId: extReq.id,
         });
         return;
       }
@@ -37,7 +48,7 @@ export class AuthController {
 
       logger.info("User signup successful", {
         userId: data.userId,
-        requestId: req.id,
+        requestId: extReq.id,
       });
 
       res.status(201).json({
@@ -48,10 +59,9 @@ export class AuthController {
           email: data.email,
         },
         message: "User created successfully",
-        requestId: req.id,
+        requestId: extReq.id,
       });
     } catch (error) {
-      // Pass to error handler middleware
       next(error);
     }
   };
@@ -63,6 +73,7 @@ export class AuthController {
   ): Promise<void> => {
     try {
       const { email, password } = req.body;
+      const extReq = req as AuthenticatedRequest;
       const ipAddress = req.ip;
 
       const result = await this.authService.login(email, password, ipAddress);
@@ -74,7 +85,7 @@ export class AuthController {
             code: "LOGIN_FAILED",
             message: result.error,
           },
-          requestId: req.id,
+          requestId: extReq.id,
         });
         return;
       }
@@ -83,7 +94,7 @@ export class AuthController {
 
       logger.info("User login successful", {
         userId: data.userId,
-        requestId: req.id,
+        requestId: extReq.id,
         ipAddress,
       });
 
@@ -98,7 +109,7 @@ export class AuthController {
           },
         },
         message: "Login successful",
-        requestId: req.id,
+        requestId: extReq.id,
       });
     } catch (error) {
       next(error);
@@ -111,7 +122,8 @@ export class AuthController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const userId = (req as any).user.userId;
+      const extReq = req as AuthenticatedRequest;
+      const userId = extReq.user.userId;
 
       const result = await this.authService.getUser(userId);
 
@@ -133,7 +145,7 @@ export class AuthController {
           lastName: user.lastName,
           createdAt: user.createdAt,
         },
-        requestId: req.id,
+        requestId: extReq.id,
       });
     } catch (error) {
       next(error);

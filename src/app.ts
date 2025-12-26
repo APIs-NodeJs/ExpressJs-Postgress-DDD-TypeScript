@@ -1,4 +1,4 @@
-import express, { Application, Request, Response, NextFunction } from "express";
+import express, { Application, Request, Response } from "express";
 import helmet from "helmet";
 import cors from "cors";
 import { initializeDatabase } from "./config/database";
