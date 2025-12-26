@@ -27,14 +27,14 @@ export class App {
 
     this.app.use("/api/auth", authModule.router);
 
-    this.app.get("/health", (req: Request, res: Response) => {
+    this.app.get("/health", (_req: Request, res: Response) => {
       res.json({ status: "ok", timestamp: new Date().toISOString() });
     });
   }
 
   private configureErrorHandling(): void {
     this.app.use(
-      (err: Error, req: Request, res: Response, next: NextFunction) => {
+      (err: Error, _req: Request, res: Response, _next: NextFunction) => {
         console.error("[Error]", err);
 
         res.status(500).json({
@@ -47,7 +47,7 @@ export class App {
       }
     );
 
-    this.app.use((req: Request, res: Response) => {
+    this.app.use((_req: Request, res: Response) => {
       res.status(404).json({
         success: false,
         error: "Route not found",
