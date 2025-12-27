@@ -223,7 +223,7 @@ export class AdvancedRequestLogger {
    * Error tracking middleware
    */
   static errorTracker() {
-    return (err: Error, req: any, res: Response, next: NextFunction): void => {
+    return (err: Error, req: any, _res: Response, next: NextFunction): void => {
       const context = this.buildContext(req);
 
       logger.error("💥 Unhandled Error", {

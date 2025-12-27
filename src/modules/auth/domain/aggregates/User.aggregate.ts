@@ -32,7 +32,7 @@ export interface UserProps {
   deletedBy?: string;
 }
 
-export class UserWithSoftDelete extends AggregateRoot<string> {
+export class User extends AggregateRoot<string> {
   private props: UserProps;
 
   get email(): Email {
@@ -184,7 +184,7 @@ export class UserWithSoftDelete extends AggregateRoot<string> {
     id?: string,
     firstName?: string,
     lastName?: string
-  ): Result<UserWithSoftDelete> {
+  ): Result<User> {
     const userId = id || UserId.create().getValue().value;
 
     const props: UserProps = {
@@ -199,7 +199,7 @@ export class UserWithSoftDelete extends AggregateRoot<string> {
       deletedAt: null,
     };
 
-    const user = new UserWithSoftDelete(userId, props);
+    const user = new User(userId, props);
 
     user.addDomainEvent(new UserCreatedEvent(userId, email.value, workspaceId));
 
