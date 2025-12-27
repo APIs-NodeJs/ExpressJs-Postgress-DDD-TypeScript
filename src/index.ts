@@ -1,4 +1,3 @@
-// src/index.ts
 import { App } from "./app";
 import { config } from "./config/env.config";
 import { sequelize } from "./config/database";
