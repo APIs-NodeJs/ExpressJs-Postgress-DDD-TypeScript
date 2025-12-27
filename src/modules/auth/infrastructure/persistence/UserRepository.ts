@@ -1,5 +1,5 @@
 import { IUserRepository } from "../../domain/repositories/IUserRepository";
-import { User } from "../../domain/aggregates/User.aggregate";
+import { UserProps } from "../../domain/aggregates/User.aggregate";
 import { Email } from "../../domain/value-objects/Email.vo";
 import { UserModel } from "./models/UserModel";
 import { UserMapper } from "./mappers/UserMapper";
@@ -8,7 +8,7 @@ import { UnitOfWork } from "../../../../core/infrastructure/persistence/UnitOfWo
 export class UserRepository implements IUserRepository {
   constructor(private readonly unitOfWork: UnitOfWork) {}
 
-  async findById(id: string): Promise<User | null> {
+  async findById(id: string): Promise<UserProps | null> {
     const transaction = this.unitOfWork.isActive()
       ? this.unitOfWork.getTransaction()
       : undefined;
@@ -22,7 +22,7 @@ export class UserRepository implements IUserRepository {
     return UserMapper.toDomain(userModel);
   }
 
-  async findByEmail(email: Email): Promise<User | null> {
+  async findByEmail(email: Email): Promise<UserProps | null> {
     const transaction = this.unitOfWork.isActive()
       ? this.unitOfWork.getTransaction()
       : undefined;
@@ -39,7 +39,7 @@ export class UserRepository implements IUserRepository {
     return UserMapper.toDomain(userModel);
   }
 
-  async findByWorkspaceId(workspaceId: string): Promise<User[]> {
+  async findByWorkspaceId(workspaceId: string): Promise<UserProps[]> {
     const transaction = this.unitOfWork.isActive()
       ? this.unitOfWork.getTransaction()
       : undefined;
@@ -65,7 +65,7 @@ export class UserRepository implements IUserRepository {
     return count > 0;
   }
 
-  async save(user: User): Promise<void> {
+  async save(user: UserProps): Promise<void> {
     const transaction = this.unitOfWork.isActive()
       ? this.unitOfWork.getTransaction()
       : undefined;

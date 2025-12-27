@@ -155,30 +155,50 @@ export async function initializeDatabase(): Promise<void> {
 }
 
 function setupConnectionHandlers(): void {
-  const pool = (sequelize.connectionManager as any).pool;
+  // FIXED: Proper way to access the connection pool
+  try {
+    const connectionManager = sequelize.connectionManager as any;
+    const pool = connectionManager?.pool;
 
-  // Handle connection errors after initial connection
-  pool?.on("error", (err: Error) => {
-    logger.error("Database pool error", { error: err.message });
-    isConnected = false;
-  });
+    if (!pool) {
+      logger.warn("Connection pool not available for event handlers");
+      return;
+    }
 
-  // Log when connections are acquired
-  pool?.on("acquire", () => {
-    const poolSize = pool?.size || 0;
-    const available = pool?.available || 0;
+    // Check if pool has the 'on' method before setting up listeners
+    if (typeof pool.on === "function") {
+      // Handle connection errors after initial connection
+      pool.on("error", (err: Error) => {
+        logger.error("Database pool error", { error: err.message });
+        isConnected = false;
+      });
 
-    logger.debug("Database connection acquired", {
-      poolSize,
-      available,
-      inUse: poolSize - available,
+      // Log when connections are acquired
+      pool.on("acquire", () => {
+        const poolSize = pool?.size || 0;
+        const available = pool?.available || 0;
+
+        logger.debug("Database connection acquired", {
+          poolSize,
+          available,
+          inUse: poolSize - available,
+        });
+      });
+
+      // Log when connections are released
+      pool.on("remove", () => {
+        logger.debug("Database connection removed from pool");
+      });
+
+      logger.debug("Database connection event handlers registered");
+    } else {
+      logger.warn("Connection pool does not support event listeners");
+    }
+  } catch (error) {
+    logger.warn("Failed to setup connection handlers", {
+      error: error instanceof Error ? error.message : "Unknown error",
     });
-  });
-
-  // Log when connections are released
-  pool?.on("remove", () => {
-    logger.debug("Database connection removed from pool");
-  });
+  }
 }
 
 // Graceful shutdown
@@ -210,13 +230,22 @@ export async function checkDatabaseHealth(): Promise<{
   try {
     await sequelize.authenticate();
 
-    const pool = (sequelize.connectionManager as any).pool;
-    const poolInfo = {
-      size: pool?.size || 0,
-      available: pool?.available || 0,
-      using: (pool?.size || 0) - (pool?.available || 0),
-      waiting: pool?.pending || 0,
-    };
+    const connectionManager = sequelize.connectionManager as any;
+    const pool = connectionManager?.pool;
+
+    const poolInfo = pool
+      ? {
+          size: pool.size || 0,
+          available: pool.available || 0,
+          using: (pool.size || 0) - (pool.available || 0),
+          waiting: pool.pending || 0,
+        }
+      : {
+          size: 0,
+          available: 0,
+          using: 0,
+          waiting: 0,
+        };
 
     return {
       healthy: true,

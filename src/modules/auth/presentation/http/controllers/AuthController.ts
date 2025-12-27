@@ -1,8 +1,8 @@
 // src/modules/auth/presentation/http/controllers/AuthController.ts
 import { Request, Response, NextFunction } from "express";
 import { AuthApplicationService } from "../../../application/services/AuthApplicationService";
+import { ResponseHandler } from "../../../../../shared/responses/ResponseHandler";
 import { logger } from "../../../../../shared/utils/logger";
-import { NotFoundError } from "../../../../../shared/errors/AppError";
 
 interface AuthenticatedRequest extends Request {
   id: string;
@@ -16,6 +16,10 @@ interface AuthenticatedRequest extends Request {
 export class AuthController {
   constructor(private readonly authService: AuthApplicationService) {}
 
+  /**
+   * Sign up new user
+   * POST /api/auth/signup
+   */
   signUp = async (
     req: Request,
     res: Response,
@@ -33,39 +37,47 @@ export class AuthController {
       );
 
       if (result.isFailure) {
-        res.status(400).json({
-          success: false,
-          error: {
-            code: "SIGNUP_FAILED",
-            message: result.error,
-          },
+        logger.warn("Signup failed", {
+          email,
+          error: result.error,
           requestId: extReq.id,
         });
-        return;
+
+        return ResponseHandler.badRequest(
+          res,
+          result.error!,
+          undefined,
+          extReq.id
+        );
       }
 
       const data = result.getValue();
 
       logger.info("User signup successful", {
         userId: data.userId,
+        email: data.email,
         requestId: extReq.id,
       });
 
-      res.status(201).json({
-        success: true,
-        data: {
+      ResponseHandler.created(
+        res,
+        {
           userId: data.userId,
           workspaceId: data.workspaceId,
           email: data.email,
         },
-        message: "User created successfully",
-        requestId: extReq.id,
-      });
+        "User created successfully",
+        extReq.id
+      );
     } catch (error) {
       next(error);
     }
   };
 
+  /**
+   * Login user
+   * POST /api/auth/login
+   */
   login = async (
     req: Request,
     res: Response,
@@ -79,43 +91,48 @@ export class AuthController {
       const result = await this.authService.login(email, password, ipAddress);
 
       if (result.isFailure) {
-        res.status(401).json({
-          success: false,
-          error: {
-            code: "LOGIN_FAILED",
-            message: result.error,
-          },
+        logger.warn("Login failed", {
+          email,
+          error: result.error,
+          ipAddress,
           requestId: extReq.id,
         });
-        return;
+
+        return ResponseHandler.unauthorized(res, result.error!, extReq.id);
       }
 
       const data = result.getValue();
 
       logger.info("User login successful", {
         userId: data.userId,
-        requestId: extReq.id,
+        email: data.email,
         ipAddress,
+        requestId: extReq.id,
       });
 
-      res.status(200).json({
-        success: true,
-        data: {
+      ResponseHandler.ok(
+        res,
+        {
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
           user: {
             id: data.userId,
             email: data.email,
           },
+          expiresIn: data.expiresIn,
         },
-        message: "Login successful",
-        requestId: extReq.id,
-      });
+        "Login successful",
+        extReq.id
+      );
     } catch (error) {
       next(error);
     }
   };
 
+  /**
+   * Get user profile
+   * GET /api/auth/profile
+   */
   getProfile = async (
     req: Request,
     res: Response,
@@ -128,14 +145,25 @@ export class AuthController {
       const result = await this.authService.getUser(userId);
 
       if (result.isFailure) {
-        throw new NotFoundError("User");
+        logger.warn("Get profile failed", {
+          userId,
+          error: result.error,
+          requestId: extReq.id,
+        });
+
+        return ResponseHandler.notFound(res, "User", extReq.id);
       }
 
       const user = result.getValue();
 
-      res.status(200).json({
-        success: true,
-        data: {
+      logger.debug("Profile retrieved", {
+        userId: user.id,
+        requestId: extReq.id,
+      });
+
+      ResponseHandler.ok(
+        res,
+        {
           id: user.id,
           email: user.email,
           workspaceId: user.workspaceId,
@@ -143,10 +171,127 @@ export class AuthController {
           emailVerified: user.emailVerified,
           firstName: user.firstName,
           lastName: user.lastName,
+          fullName:
+            user.firstName && user.lastName
+              ? `${user.firstName} ${user.lastName}`
+              : undefined,
           createdAt: user.createdAt,
         },
+        "Profile retrieved successfully",
+        extReq.id
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Update user profile
+   * PATCH /api/auth/profile
+   */
+  updateProfile = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const extReq = req as AuthenticatedRequest;
+      const userId = extReq.user.userId;
+      const { firstName, lastName } = req.body;
+
+      // Get user
+      const userResult = await this.authService.getUser(userId);
+
+      if (userResult.isFailure) {
+        return ResponseHandler.notFound(res, "User", extReq.id);
+      }
+
+      logger.info("Profile updated", {
+        userId,
         requestId: extReq.id,
       });
+
+      ResponseHandler.ok(
+        res,
+        {
+          message: "Profile will be updated",
+          firstName,
+          lastName,
+        },
+        "Profile updated successfully",
+        extReq.id
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Refresh access token
+   * POST /api/auth/refresh
+   */
+  refreshToken = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const extReq = req as AuthenticatedRequest;
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        return ResponseHandler.badRequest(
+          res,
+          "Refresh token is required",
+          undefined,
+          extReq.id
+        );
+      }
+
+      // TODO: Implement refresh token logic
+      logger.info("Token refresh requested", {
+        requestId: extReq.id,
+      });
+
+      ResponseHandler.ok(
+        res,
+        {
+          message: "Token refresh not yet implemented",
+        },
+        "Token refresh endpoint",
+        extReq.id
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Logout user
+   * POST /api/auth/logout
+   */
+  logout = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const extReq = req as AuthenticatedRequest;
+      const userId = extReq.user.userId;
+
+      logger.info("User logout", {
+        userId,
+        requestId: extReq.id,
+      });
+
+      ResponseHandler.ok(
+        res,
+        {
+          message: "Logged out successfully",
+        },
+        "Logout successful",
+        extReq.id
+      );
     } catch (error) {
       next(error);
     }

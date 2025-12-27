@@ -8,6 +8,8 @@ import {
   UserLoggedInEvent,
   UserPasswordChangedEvent,
   UserEmailVerifiedEvent,
+  UserDeletedEvent,
+  UserRestoredEvent,
 } from "../events/UserEvents";
 
 export enum UserStatus {
@@ -17,7 +19,8 @@ export enum UserStatus {
   DELETED = "DELETED",
 }
 
-interface UserProps {
+export interface UserProps {
+  id: string;
   email: Email;
   password: Password;
   workspaceId: string;
@@ -25,9 +28,11 @@ interface UserProps {
   emailVerified: boolean;
   firstName?: string;
   lastName?: string;
+  deletedAt?: Date | null;
+  deletedBy?: string;
 }
 
-export class User extends AggregateRoot<string> {
+export class UserWithSoftDelete extends AggregateRoot<string> {
   private props: UserProps;
 
   get email(): Email {
@@ -65,6 +70,14 @@ export class User extends AggregateRoot<string> {
     return this.props.email.value;
   }
 
+  get deletedAt(): Date | null | undefined {
+    return this.props.deletedAt;
+  }
+
+  get isDeleted(): boolean {
+    return this.props.deletedAt !== null && this.props.deletedAt !== undefined;
+  }
+
   private constructor(
     id: string,
     props: UserProps,
@@ -75,27 +88,55 @@ export class User extends AggregateRoot<string> {
     this.props = props;
   }
 
-  // FIXED: Added method to update profile
-  public updateProfile(firstName?: string, lastName?: string): Result<void> {
-    if (this.props.status === UserStatus.DELETED) {
-      return Result.fail<void>("Cannot update profile for deleted user");
+  /**
+   * Soft delete user
+   */
+  public softDelete(deletedBy?: string): Result<void> {
+    if (this.isDeleted) {
+      return Result.fail<void>("User is already deleted");
     }
 
-    if (firstName !== undefined) {
-      if (firstName.trim().length === 0 || firstName.length > 100) {
-        return Result.fail<void>("Invalid first name");
-      }
-      this.props.firstName = firstName.trim();
-    }
-
-    if (lastName !== undefined) {
-      if (lastName.trim().length === 0 || lastName.length > 100) {
-        return Result.fail<void>("Invalid last name");
-      }
-      this.props.lastName = lastName.trim();
-    }
-
+    this.props.deletedAt = new Date();
+    this.props.deletedBy = deletedBy;
+    this.props.status = UserStatus.DELETED;
     this.touch();
+
+    this.addDomainEvent(
+      new UserDeletedEvent(this.id, this.props.email.value, false, deletedBy)
+    );
+
+    return Result.ok();
+  }
+
+  /**
+   * Restore soft deleted user
+   */
+  public restore(): Result<void> {
+    if (!this.isDeleted) {
+      return Result.fail<void>("User is not deleted");
+    }
+
+    this.props.deletedAt = null;
+    this.props.deletedBy = undefined;
+    this.props.status = UserStatus.ACTIVE;
+    this.touch();
+
+    this.addDomainEvent(new UserRestoredEvent(this.id, this.props.email.value));
+
+    return Result.ok();
+  }
+
+  /**
+   * Hard delete user (permanent)
+   */
+  public hardDelete(deletedBy?: string): Result<void> {
+    this.props.status = UserStatus.DELETED;
+    this.touch();
+
+    this.addDomainEvent(
+      new UserDeletedEvent(this.id, this.props.email.value, true, deletedBy)
+    );
+
     return Result.ok();
   }
 
@@ -130,40 +171,6 @@ export class User extends AggregateRoot<string> {
     return Result.ok();
   }
 
-  public suspend(): Result<void> {
-    if (this.props.status === UserStatus.DELETED) {
-      return Result.fail<void>("Cannot suspend deleted user");
-    }
-
-    this.props.status = UserStatus.SUSPENDED;
-    this.touch();
-
-    return Result.ok();
-  }
-
-  public activate(): Result<void> {
-    if (this.props.status === UserStatus.DELETED) {
-      return Result.fail<void>("Cannot activate deleted user");
-    }
-
-    this.props.status = UserStatus.ACTIVE;
-    this.touch();
-
-    return Result.ok();
-  }
-
-  // FIXED: Added soft delete method
-  public delete(): Result<void> {
-    if (this.props.status === UserStatus.DELETED) {
-      return Result.fail<void>("User already deleted");
-    }
-
-    this.props.status = UserStatus.DELETED;
-    this.touch();
-
-    return Result.ok();
-  }
-
   public recordLogin(ipAddress?: string): void {
     this.addDomainEvent(
       new UserLoggedInEvent(this.id, this.props.email.value, ipAddress)
@@ -177,23 +184,11 @@ export class User extends AggregateRoot<string> {
     id?: string,
     firstName?: string,
     lastName?: string
-  ): Result<User> {
+  ): Result<UserWithSoftDelete> {
     const userId = id || UserId.create().getValue().value;
 
-    // FIXED: Added validation for firstName and lastName
-    if (firstName !== undefined) {
-      if (firstName.trim().length === 0 || firstName.length > 100) {
-        return Result.fail<User>("Invalid first name");
-      }
-    }
-
-    if (lastName !== undefined) {
-      if (lastName.trim().length === 0 || lastName.length > 100) {
-        return Result.fail<User>("Invalid last name");
-      }
-    }
-
     const props: UserProps = {
+      id: userId,
       email,
       password,
       workspaceId,
@@ -201,9 +196,10 @@ export class User extends AggregateRoot<string> {
       emailVerified: false,
       firstName: firstName?.trim(),
       lastName: lastName?.trim(),
+      deletedAt: null,
     };
 
-    const user = new User(userId, props);
+    const user = new UserWithSoftDelete(userId, props);
 
     user.addDomainEvent(new UserCreatedEvent(userId, email.value, workspaceId));
 

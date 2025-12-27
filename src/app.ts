@@ -8,6 +8,7 @@ import { errorHandler } from "./shared/middlewares/errorHandler";
 import { requestLogger } from "./shared/middlewares/requestLogger";
 import { cacheService } from "./shared/infrastructure/cache/CacheService";
 import { logger } from "./shared/utils/logger";
+import { AdvancedRequestLogger } from "./shared/middlewares/advancedLogger";
 
 export class App {
   public app: Application;
@@ -17,6 +18,21 @@ export class App {
   }
 
   private configureMiddlewares(): void {
+    // In configureMiddlewares():
+    this.app.use(AdvancedRequestLogger.correlationId());
+    this.app.use(AdvancedRequestLogger.middleware());
+    this.app.use(
+      AdvancedRequestLogger.performanceMonitor({
+        slow: 1000,
+        critical: 5000,
+      })
+    );
+    this.app.use(AdvancedRequestLogger.activityTracker());
+    this.app.use(AdvancedRequestLogger.metricsCollector());
+
+    // After all routes, add error tracker
+    this.app.use(AdvancedRequestLogger.errorTracker());
+
     // Security
     this.app.use(
       helmet({

@@ -21,13 +21,19 @@ export class UserLoggedInEvent extends BaseDomainEvent {
 }
 
 export class UserPasswordChangedEvent extends BaseDomainEvent {
-  constructor(public readonly userId: string, public readonly email: string) {
+  constructor(
+    public readonly userId: string,
+    public readonly email: string
+  ) {
     super(userId, "UserPasswordChanged");
   }
 }
 
 export class UserEmailVerifiedEvent extends BaseDomainEvent {
-  constructor(public readonly userId: string, public readonly email: string) {
+  constructor(
+    public readonly userId: string,
+    public readonly email: string
+  ) {
     super(userId, "UserEmailVerified");
   }
 }
@@ -39,5 +45,25 @@ export class WorkspaceCreatedEvent extends BaseDomainEvent {
     public readonly ownerId: string
   ) {
     super(workspaceId, "WorkspaceCreated");
+  }
+}
+
+export class UserDeletedEvent extends BaseDomainEvent {
+  constructor(
+    public readonly userId: string,
+    public readonly email: string,
+    public readonly isHardDelete: boolean,
+    public readonly deletedBy?: string
+  ) {
+    super(userId, "UserDeleted");
+  }
+}
+
+export class UserRestoredEvent extends BaseDomainEvent {
+  constructor(
+    public readonly userId: string,
+    public readonly email: string
+  ) {
+    super(userId, "UserRestored");
   }
 }

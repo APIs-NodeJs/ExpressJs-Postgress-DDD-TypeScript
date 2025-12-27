@@ -1,18 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import { AppError } from "../errors/AppError";
+import { ResponseHandler } from "../responses/ResponseHandler";
 import { logger } from "../utils/logger";
 import { ZodError } from "zod";
-
-interface ErrorResponse {
-  success: false;
-  error: {
-    code: string;
-    message: string;
-    details?: any;
-  };
-  requestId?: string;
-  timestamp: string;
-}
 
 export const errorHandler = (
   err: Error,
@@ -21,7 +11,6 @@ export const errorHandler = (
   _next: NextFunction
 ) => {
   const requestId = (req as any).id;
-  const timestamp = new Date().toISOString();
 
   // Handle AppError (operational errors)
   if (err instanceof AppError) {
@@ -36,17 +25,14 @@ export const errorHandler = (
       userAgent: req.get("user-agent"),
     });
 
-    const response: ErrorResponse = {
-      success: false,
-      error: {
-        code: err.code,
-        message: err.message,
-      },
-      requestId,
-      timestamp,
-    };
-
-    return res.status(err.statusCode).json(response);
+    return ResponseHandler.error(
+      res,
+      err.statusCode,
+      err.code,
+      err.message,
+      undefined,
+      requestId
+    );
   }
 
   // Handle Zod validation errors
@@ -58,21 +44,13 @@ export const errorHandler = (
       requestId,
     });
 
-    const response: ErrorResponse = {
-      success: false,
-      error: {
-        code: "VALIDATION_ERROR",
-        message: "Validation failed",
-        details: err.errors.map((e) => ({
-          field: e.path.join("."),
-          message: e.message,
-        })),
-      },
-      requestId,
-      timestamp,
-    };
+    const validationErrors = err.errors.map((e) => ({
+      field: e.path.join("."),
+      message: e.message,
+      value: undefined,
+    }));
 
-    return res.status(400).json(response);
+    return ResponseHandler.validationError(res, validationErrors, requestId);
   }
 
   // Handle Sequelize errors
@@ -84,17 +62,12 @@ export const errorHandler = (
       requestId,
     });
 
-    const response: ErrorResponse = {
-      success: false,
-      error: {
-        code: "DATABASE_VALIDATION_ERROR",
-        message: "Invalid data",
-      },
-      requestId,
-      timestamp,
-    };
-
-    return res.status(400).json(response);
+    return ResponseHandler.badRequest(
+      res,
+      "Invalid data provided",
+      process.env.NODE_ENV === "development" ? err.message : undefined,
+      requestId
+    );
   }
 
   if (err.name === "SequelizeUniqueConstraintError") {
@@ -105,17 +78,7 @@ export const errorHandler = (
       requestId,
     });
 
-    const response: ErrorResponse = {
-      success: false,
-      error: {
-        code: "DUPLICATE_ENTRY",
-        message: "Resource already exists",
-      },
-      requestId,
-      timestamp,
-    };
-
-    return res.status(409).json(response);
+    return ResponseHandler.conflict(res, "Resource already exists", requestId);
   }
 
   if (err.name === "SequelizeForeignKeyConstraintError") {
@@ -126,17 +89,12 @@ export const errorHandler = (
       requestId,
     });
 
-    const response: ErrorResponse = {
-      success: false,
-      error: {
-        code: "INVALID_REFERENCE",
-        message: "Referenced resource does not exist",
-      },
-      requestId,
-      timestamp,
-    };
-
-    return res.status(400).json(response);
+    return ResponseHandler.badRequest(
+      res,
+      "Referenced resource does not exist",
+      undefined,
+      requestId
+    );
   }
 
   if (err.name === "SequelizeDatabaseError") {
@@ -148,20 +106,12 @@ export const errorHandler = (
       requestId,
     });
 
-    const response: ErrorResponse = {
-      success: false,
-      error: {
-        code: "DATABASE_ERROR",
-        message:
-          process.env.NODE_ENV === "production"
-            ? "A database error occurred"
-            : err.message,
-      },
-      requestId,
-      timestamp,
-    };
-
-    return res.status(500).json(response);
+    return ResponseHandler.internalError(
+      res,
+      "A database error occurred",
+      process.env.NODE_ENV === "development" ? err.message : undefined,
+      requestId
+    );
   }
 
   // Handle JWT errors
@@ -173,17 +123,11 @@ export const errorHandler = (
       requestId,
     });
 
-    const response: ErrorResponse = {
-      success: false,
-      error: {
-        code: "INVALID_TOKEN",
-        message: "Invalid authentication token",
-      },
-      requestId,
-      timestamp,
-    };
-
-    return res.status(401).json(response);
+    return ResponseHandler.unauthorized(
+      res,
+      "Invalid authentication token",
+      requestId
+    );
   }
 
   if (err.name === "TokenExpiredError") {
@@ -193,17 +137,11 @@ export const errorHandler = (
       requestId,
     });
 
-    const response: ErrorResponse = {
-      success: false,
-      error: {
-        code: "TOKEN_EXPIRED",
-        message: "Authentication token has expired",
-      },
-      requestId,
-      timestamp,
-    };
-
-    return res.status(401).json(response);
+    return ResponseHandler.unauthorized(
+      res,
+      "Authentication token has expired",
+      requestId
+    );
   }
 
   // Handle SyntaxError (malformed JSON)
@@ -215,20 +153,15 @@ export const errorHandler = (
       requestId,
     });
 
-    const response: ErrorResponse = {
-      success: false,
-      error: {
-        code: "INVALID_JSON",
-        message: "Malformed JSON in request body",
-      },
-      requestId,
-      timestamp,
-    };
-
-    return res.status(400).json(response);
+    return ResponseHandler.badRequest(
+      res,
+      "Malformed JSON in request body",
+      undefined,
+      requestId
+    );
   }
 
-  // Unexpected errors (should be minimized)
+  // Unexpected errors
   logger.error("Unexpected error", {
     error: err.message,
     stack: err.stack,
@@ -243,18 +176,12 @@ export const errorHandler = (
     userAgent: req.get("user-agent"),
   });
 
-  const response: ErrorResponse = {
-    success: false,
-    error: {
-      code: "INTERNAL_ERROR",
-      message:
-        process.env.NODE_ENV === "production"
-          ? "An unexpected error occurred"
-          : err.message,
-    },
-    requestId,
-    timestamp,
-  };
-
-  return res.status(500).json(response);
+  return ResponseHandler.internalError(
+    res,
+    process.env.NODE_ENV === "production"
+      ? "An unexpected error occurred"
+      : err.message,
+    process.env.NODE_ENV === "development" ? err.stack : undefined,
+    requestId
+  );
 };
