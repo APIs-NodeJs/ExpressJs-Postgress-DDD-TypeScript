@@ -1,3 +1,4 @@
+// src/modules/auth/domain/aggregates/User.aggregate.ts
 import { AggregateRoot } from "../../../../core/domain/AggregateRoot";
 import { Result } from "../../../../core/domain/Result";
 import { UserId } from "../value-objects/UserId.vo";
@@ -10,6 +11,7 @@ import {
   UserEmailVerifiedEvent,
   UserDeletedEvent,
   UserRestoredEvent,
+  UserAssignedToWorkspaceEvent,
 } from "../events/UserEvents";
 
 export enum UserStatus {
@@ -23,11 +25,13 @@ export interface UserProps {
   id: string;
   email: Email;
   password: Password;
-  workspaceId: string;
+  workspaceId: string | null; // Now nullable - users can exist without workspace
   status: UserStatus;
   emailVerified: boolean;
   firstName?: string;
   lastName?: string;
+  lastLoginAt?: Date;
+  lastLoginIp?: string;
   deletedAt?: Date | null;
   deletedBy?: string;
 }
@@ -43,7 +47,7 @@ export class User extends AggregateRoot<string> {
     return this.props.password;
   }
 
-  get workspaceId(): string {
+  get workspaceId(): string | null {
     return this.props.workspaceId;
   }
 
@@ -67,7 +71,14 @@ export class User extends AggregateRoot<string> {
     if (this.props.firstName && this.props.lastName) {
       return `${this.props.firstName} ${this.props.lastName}`;
     }
+    if (this.props.firstName) {
+      return this.props.firstName;
+    }
     return this.props.email.value;
+  }
+
+  get lastLoginAt(): Date | undefined {
+    return this.props.lastLoginAt;
   }
 
   get deletedAt(): Date | null | undefined {
@@ -78,6 +89,10 @@ export class User extends AggregateRoot<string> {
     return this.props.deletedAt !== null && this.props.deletedAt !== undefined;
   }
 
+  get hasWorkspace(): boolean {
+    return this.props.workspaceId !== null;
+  }
+
   private constructor(
     id: string,
     props: UserProps,
@@ -86,6 +101,158 @@ export class User extends AggregateRoot<string> {
   ) {
     super(id, createdAt, updatedAt);
     this.props = props;
+  }
+
+  /**
+   * Business Rules
+   */
+  private canChangePassword(): Result<void> {
+    if (this.props.status !== UserStatus.ACTIVE) {
+      return Result.fail<void>("Cannot change password for inactive user");
+    }
+
+    if (this.isDeleted) {
+      return Result.fail<void>("Cannot change password for deleted user");
+    }
+
+    return Result.ok();
+  }
+
+  private canVerifyEmail(): Result<void> {
+    if (this.props.emailVerified) {
+      return Result.fail<void>("Email already verified");
+    }
+
+    if (this.isDeleted) {
+      return Result.fail<void>("Cannot verify email for deleted user");
+    }
+
+    return Result.ok();
+  }
+
+  /**
+   * Assign user to workspace
+   */
+  public assignToWorkspace(workspaceId: string): Result<void> {
+    if (!workspaceId) {
+      return Result.fail<void>("Workspace ID is required");
+    }
+
+    if (this.props.workspaceId === workspaceId) {
+      return Result.fail<void>("User already assigned to this workspace");
+    }
+
+    if (this.isDeleted) {
+      return Result.fail<void>("Cannot assign deleted user to workspace");
+    }
+
+    const previousWorkspaceId = this.props.workspaceId;
+    this.props.workspaceId = workspaceId;
+    this.touch();
+
+    // Emit domain event
+    this.addDomainEvent(
+      new UserAssignedToWorkspaceEvent(
+        this.id,
+        workspaceId,
+        previousWorkspaceId
+      )
+    );
+
+    return Result.ok();
+  }
+
+  /**
+   * Remove user from workspace
+   */
+  public removeFromWorkspace(): Result<void> {
+    if (!this.hasWorkspace) {
+      return Result.fail<void>("User is not assigned to any workspace");
+    }
+
+    this.props.workspaceId = null;
+    this.touch();
+
+    return Result.ok();
+  }
+
+  /**
+   * Change password
+   */
+  public changePassword(newPassword: Password): Result<void> {
+    const canChangeResult = this.canChangePassword();
+    if (canChangeResult.isFailure) {
+      return canChangeResult;
+    }
+
+    this.props.password = newPassword;
+    this.touch();
+
+    this.addDomainEvent(
+      new UserPasswordChangedEvent(this.id, this.props.email.value)
+    );
+
+    return Result.ok();
+  }
+
+  /**
+   * Verify email
+   */
+  public verifyEmail(): Result<void> {
+    const canVerifyResult = this.canVerifyEmail();
+    if (canVerifyResult.isFailure) {
+      return canVerifyResult;
+    }
+
+    this.props.emailVerified = true;
+    this.props.status = UserStatus.ACTIVE;
+    this.touch();
+
+    this.addDomainEvent(
+      new UserEmailVerifiedEvent(this.id, this.props.email.value)
+    );
+
+    return Result.ok();
+  }
+
+  /**
+   * Record login
+   */
+  public recordLogin(ipAddress?: string): void {
+    this.props.lastLoginAt = new Date();
+    this.props.lastLoginIp = ipAddress;
+    this.touch();
+
+    this.addDomainEvent(
+      new UserLoggedInEvent(this.id, this.props.email.value, ipAddress)
+    );
+  }
+
+  /**
+   * Update profile
+   */
+  public updateProfile(firstName?: string, lastName?: string): Result<void> {
+    if (this.isDeleted) {
+      return Result.fail<void>("Cannot update profile for deleted user");
+    }
+
+    if (firstName !== undefined) {
+      if (firstName.length > 100) {
+        return Result.fail<void>("First name too long");
+      }
+      this.props.firstName = firstName.trim() || undefined;
+    }
+
+    if (lastName !== undefined) {
+      if (lastName.length > 100) {
+        return Result.fail<void>("Last name too long");
+      }
+      this.props.lastName = lastName.trim() || undefined;
+    }
+
+    this.touch();
+
+    return Result.ok();
   }
 
   /**
@@ -140,47 +307,48 @@ export class User extends AggregateRoot<string> {
     return Result.ok();
   }
 
-  public changePassword(newPassword: Password): Result<void> {
-    if (this.props.status !== UserStatus.ACTIVE) {
-      return Result.fail<void>("Cannot change password for inactive user");
+  /**
+   * Suspend user
+   */
+  public suspend(): Result<void> {
+    if (this.isDeleted) {
+      return Result.fail<void>("Cannot suspend deleted user");
     }
 
-    this.props.password = newPassword;
-    this.touch();
+    if (this.props.status === UserStatus.SUSPENDED) {
+      return Result.fail<void>("User is already suspended");
+    }
 
-    this.addDomainEvent(
-      new UserPasswordChangedEvent(this.id, this.props.email.value)
-    );
+    this.props.status = UserStatus.SUSPENDED;
+    this.touch();
 
     return Result.ok();
   }
 
-  public verifyEmail(): Result<void> {
-    if (this.props.emailVerified) {
-      return Result.fail<void>("Email already verified");
+  /**
+   * Activate user
+   */
+  public activate(): Result<void> {
+    if (this.isDeleted) {
+      return Result.fail<void>("Cannot activate deleted user");
     }
 
-    this.props.emailVerified = true;
     this.props.status = UserStatus.ACTIVE;
     this.touch();
 
-    this.addDomainEvent(
-      new UserEmailVerifiedEvent(this.id, this.props.email.value)
-    );
-
     return Result.ok();
   }
 
-  public recordLogin(ipAddress?: string): void {
-    this.addDomainEvent(
-      new UserLoggedInEvent(this.id, this.props.email.value, ipAddress)
-    );
-  }
+  /**
+   * Factory Methods
+   */
 
+  /**
+   * Create new user WITHOUT workspace (workspace assigned later)
+   */
   public static create(
     email: Email,
     password: Password,
-    workspaceId: string,
     id?: string,
     firstName?: string,
     lastName?: string
@@ -191,7 +359,7 @@ export class User extends AggregateRoot<string> {
       id: userId,
       email,
       password,
-      workspaceId,
+      workspaceId: null, // No workspace initially
       status: UserStatus.PENDING,
       emailVerified: false,
       firstName: firstName?.trim(),
@@ -201,8 +369,70 @@ export class User extends AggregateRoot<string> {
 
     const user = new User(userId, props);
 
-    user.addDomainEvent(new UserCreatedEvent(userId, email.value, workspaceId));
+    user.addDomainEvent(new UserCreatedEvent(userId, email.value));
 
     return Result.ok(user);
+  }
+
+  /**
+   * Create user WITH workspace (for backward compatibility)
+   */
+  public static createWithWorkspace(
+    email: Email,
+    password: Password,
+    workspaceId: string,
+    id?: string,
+    firstName?: string,
+    lastName?: string
+  ): Result<User> {
+    const userResult = User.create(email, password, id, firstName, lastName);
+
+    if (userResult.isFailure) {
+      return userResult;
+    }
+
+    const user = userResult.getValue();
+    const assignResult = user.assignToWorkspace(workspaceId);
+
+    if (assignResult.isFailure) {
+      return Result.fail<User>(assignResult.error!);
+    }
+
+    return Result.ok(user);
+  }
+
+  /**
+   * Reconstitute from persistence
+   */
+  public static reconstitute(
+    id: string,
+    email: Email,
+    password: Password,
+    workspaceId: string | null,
+    status: UserStatus,
+    emailVerified: boolean,
+    firstName: string | undefined,
+    lastName: string | undefined,
+    lastLoginAt: Date | undefined,
+    deletedAt: Date | null,
+    deletedBy: string | undefined,
+    createdAt: Date,
+    updatedAt: Date
+  ): Result<User> {
+    const props: UserProps = {
+      id,
+      email,
+      password,
+      workspaceId,
+      status,
+      emailVerified,
+      firstName,
+      lastName,
+      lastLoginAt,
+      deletedAt,
+      deletedBy,
+    };
+
+    return Result.ok(new User(id, props, createdAt, updatedAt));
   }
 }

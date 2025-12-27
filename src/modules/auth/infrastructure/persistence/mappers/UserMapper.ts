@@ -1,3 +1,4 @@
+// src/modules/auth/infrastructure/persistence/mappers/UserMapper.ts
 import { User, UserStatus } from "../../../domain/aggregates/User.aggregate";
 import { UserModel } from "../models/UserModel";
 import { Email } from "../../../domain/value-objects/Email.vo";
@@ -15,40 +16,27 @@ export class UserMapper {
       throw new Error(`Invalid password: ${passwordOrError.error}`);
     }
 
-    const userOrError = User.create(
+    const userOrError = User.reconstitute(
+      model.id,
       emailOrError.getValue(),
       passwordOrError.getValue(),
-      model.workspaceId,
-      model.id,
+      model.workspaceId, // Can be null now
+      model.status as UserStatus,
+      model.emailVerified,
       model.firstName,
-      model.lastName
+      model.lastName,
+      model.lastLoginAt || undefined,
+      model.deletedAt ?? new Date(), // Provide a default value for deletedAt
+      model.deletedBy || undefined,
+      model.createdAt,
+      model.updatedAt
     );
 
     if (userOrError.isFailure) {
       throw new Error(`Failed to create user: ${userOrError.error}`);
     }
 
-    const user = userOrError.getValue();
-
-    // Restore state (using reflection-like access)
-    Object.assign(user, {
-      _createdAt: model.createdAt,
-      _updatedAt: model.updatedAt,
-      props: {
-        id: model.id,
-        email: emailOrError.getValue(),
-        password: passwordOrError.getValue(),
-        workspaceId: model.workspaceId,
-        status: model.status as UserStatus,
-        emailVerified: model.emailVerified,
-        firstName: model.firstName,
-        lastName: model.lastName,
-        deletedAt: model.deletedAt,
-        deletedBy: model.deletedBy,
-      },
-    });
-
-    return user;
+    return userOrError.getValue();
   }
 
   static toPersistence(user: User): Partial<UserModel> {
@@ -56,11 +44,13 @@ export class UserMapper {
       id: user.id,
       email: user.email.value,
       password: user.password.value,
-      workspaceId: user.workspaceId,
+      workspaceId: user.workspaceId, // Can be null
       status: user.status,
       emailVerified: user.emailVerified,
       firstName: user.firstName,
       lastName: user.lastName,
+      lastLoginAt: user.lastLoginAt || null,
+      lastLoginIp: user["props"]?.lastLoginIp || null,
       deletedAt: user.deletedAt,
       deletedBy: user["props"]?.deletedBy,
       createdAt: user.createdAt,

@@ -1,10 +1,10 @@
+// src/modules/auth/domain/events/UserEvents.ts
 import { BaseDomainEvent } from "../../../../core/domain/DomainEvent";
 
 export class UserCreatedEvent extends BaseDomainEvent {
   constructor(
     public readonly userId: string,
-    public readonly email: string,
-    public readonly workspaceId: string
+    public readonly email: string
   ) {
     super(userId, "UserCreated");
   }
@@ -38,16 +38,6 @@ export class UserEmailVerifiedEvent extends BaseDomainEvent {
   }
 }
 
-export class WorkspaceCreatedEvent extends BaseDomainEvent {
-  constructor(
-    public readonly workspaceId: string,
-    public readonly name: string,
-    public readonly ownerId: string
-  ) {
-    super(workspaceId, "WorkspaceCreated");
-  }
-}
-
 export class UserDeletedEvent extends BaseDomainEvent {
   constructor(
     public readonly userId: string,
@@ -65,5 +55,49 @@ export class UserRestoredEvent extends BaseDomainEvent {
     public readonly email: string
   ) {
     super(userId, "UserRestored");
+  }
+}
+
+export class UserAssignedToWorkspaceEvent extends BaseDomainEvent {
+  constructor(
+    public readonly userId: string,
+    public readonly workspaceId: string,
+    public readonly previousWorkspaceId: string | null
+  ) {
+    super(userId, "UserAssignedToWorkspace");
+  }
+}
+
+export class UserProfileUpdatedEvent extends BaseDomainEvent {
+  constructor(
+    public readonly userId: string,
+    public readonly email: string,
+    public readonly changes: {
+      firstName?: string;
+      lastName?: string;
+    }
+  ) {
+    super(userId, "UserProfileUpdated");
+  }
+}
+
+export class UserSuspendedEvent extends BaseDomainEvent {
+  constructor(
+    public readonly userId: string,
+    public readonly email: string,
+    public readonly suspendedBy: string,
+    public readonly reason?: string
+  ) {
+    super(userId, "UserSuspended");
+  }
+}
+
+export class UserActivatedEvent extends BaseDomainEvent {
+  constructor(
+    public readonly userId: string,
+    public readonly email: string,
+    public readonly activatedBy: string
+  ) {
+    super(userId, "UserActivated");
   }
 }

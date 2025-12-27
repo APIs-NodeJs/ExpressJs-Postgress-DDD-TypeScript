@@ -1,3 +1,4 @@
+// src/modules/auth/infrastructure/persistence/models/UserModel.ts
 import { Model, DataTypes, Optional } from "sequelize";
 import { sequelize } from "../../../../../config/database";
 
@@ -5,11 +6,13 @@ interface UserAttributes {
   id: string;
   email: string;
   password: string;
-  workspaceId: string;
+  workspaceId: string | null; // NOW NULLABLE
   status: string;
   emailVerified: boolean;
   firstName?: string;
   lastName?: string;
+  lastLoginAt?: Date | null;
+  lastLoginIp?: string | null;
   deletedAt?: Date | null;
   deletedBy?: string | null;
   createdAt: Date;
@@ -18,7 +21,13 @@ interface UserAttributes {
 
 interface UserCreationAttributes extends Optional<
   UserAttributes,
-  "id" | "createdAt" | "updatedAt" | "deletedAt" | "deletedBy"
+  | "id"
+  | "createdAt"
+  | "updatedAt"
+  | "deletedAt"
+  | "deletedBy"
+  | "lastLoginAt"
+  | "lastLoginIp"
 > {}
 
 export class UserModel
@@ -28,11 +37,13 @@ export class UserModel
   public id!: string;
   public email!: string;
   public password!: string;
-  public workspaceId!: string;
+  public workspaceId!: string | null;
   public status!: string;
   public emailVerified!: boolean;
   public firstName?: string;
   public lastName?: string;
+  public lastLoginAt?: Date | null;
+  public lastLoginIp?: string | null;
   public deletedAt?: Date | null;
   public deletedBy?: string | null;
   public readonly createdAt!: Date;
@@ -60,8 +71,9 @@ UserModel.init(
     },
     workspaceId: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true, // NOW NULLABLE - users can exist without workspace
       field: "workspace_id",
+      comment: "User can be created without workspace initially",
     },
     status: {
       type: DataTypes.ENUM("PENDING", "ACTIVE", "SUSPENDED", "DELETED"),
@@ -83,6 +95,18 @@ UserModel.init(
       type: DataTypes.STRING(100),
       allowNull: true,
       field: "last_name",
+    },
+    lastLoginAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: "last_login_at",
+      comment: "Timestamp of last successful login",
+    },
+    lastLoginIp: {
+      type: DataTypes.STRING(45), // IPv6 max length
+      allowNull: true,
+      field: "last_login_ip",
+      comment: "IP address of last login",
     },
     deletedAt: {
       type: DataTypes.DATE,
@@ -112,10 +136,31 @@ UserModel.init(
     tableName: "users",
     timestamps: true,
     indexes: [
-      { fields: ["email"] },
-      { fields: ["workspace_id"] },
-      { fields: ["status"] },
-      { fields: ["deleted_at"] }, // Index for soft delete queries
+      {
+        fields: ["email"],
+        unique: true,
+        name: "idx_users_email_unique",
+      },
+      {
+        fields: ["workspace_id"],
+        name: "idx_users_workspace_id",
+      },
+      {
+        fields: ["status"],
+        name: "idx_users_status",
+      },
+      {
+        fields: ["deleted_at"],
+        name: "idx_users_deleted_at",
+      },
+      {
+        fields: ["email", "deleted_at"],
+        name: "idx_users_email_deleted",
+      },
+      {
+        fields: ["last_login_at"],
+        name: "idx_users_last_login",
+      },
     ],
   }
 );
