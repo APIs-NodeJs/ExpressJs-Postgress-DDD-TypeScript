@@ -1,4 +1,3 @@
-// src/modules/auth/infrastructure/persistence/mappers/UserMapper.ts
 import { User, UserStatus } from "../../../domain/aggregates/User.aggregate";
 import { UserModel } from "../models/UserModel";
 import { Email } from "../../../domain/value-objects/Email.vo";
@@ -20,13 +19,13 @@ export class UserMapper {
       model.id,
       emailOrError.getValue(),
       passwordOrError.getValue(),
-      model.workspaceId, // Can be null now
+      model.workspaceId, // Can be null
       model.status as UserStatus,
       model.emailVerified,
-      model.firstName,
-      model.lastName,
+      model.firstName || undefined,
+      model.lastName || undefined,
       model.lastLoginAt || undefined,
-      model.deletedAt ?? new Date(), // Provide a default value for deletedAt
+      model.deletedAt || null, // ✅ FIXED: Use null instead of new Date()
       model.deletedBy || undefined,
       model.createdAt,
       model.updatedAt
@@ -47,12 +46,12 @@ export class UserMapper {
       workspaceId: user.workspaceId, // Can be null
       status: user.status,
       emailVerified: user.emailVerified,
-      firstName: user.firstName,
-      lastName: user.lastName,
+      firstName: user.firstName || undefined,
+      lastName: user.lastName || undefined,
       lastLoginAt: user.lastLoginAt || null,
-      lastLoginIp: user["props"]?.lastLoginIp || null,
-      deletedAt: user.deletedAt,
-      deletedBy: user["props"]?.deletedBy,
+      lastLoginIp: (user as any)["props"]?.lastLoginIp || null,
+      deletedAt: user.deletedAt || null,
+      deletedBy: (user as any)["props"]?.deletedBy || undefined,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

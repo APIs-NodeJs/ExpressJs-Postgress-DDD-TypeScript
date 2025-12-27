@@ -1,16 +1,16 @@
 import { createClient, RedisClientType } from "redis";
 import { config } from "../../../config/env.config";
-import { logger } from "../../../shared/utils/logger";
+import { logger } from "../../utils/logger"; // ✅ FIXED: Correct import path
 
 enum CircuitState {
-  CLOSED = "CLOSED", // Normal operation
-  OPEN = "OPEN", // Too many failures, stop trying
-  HALF_OPEN = "HALF_OPEN", // Testing if service recovered
+  CLOSED = "CLOSED",
+  OPEN = "OPEN",
+  HALF_OPEN = "HALF_OPEN",
 }
 
 interface CircuitBreakerConfig {
   failureThreshold: number;
-  recoveryTimeout: number; // ms
+  recoveryTimeout: number;
   halfOpenAttempts: number;
 }
 
@@ -25,9 +25,9 @@ export class CacheService {
   private successCount: number = 0;
 
   private circuitConfig: CircuitBreakerConfig = {
-    failureThreshold: 5, // Open circuit after 5 failures
-    recoveryTimeout: 60000, // Try to recover after 60 seconds
-    halfOpenAttempts: 3, // Need 3 successes to close circuit
+    failureThreshold: 5,
+    recoveryTimeout: 60000,
+    halfOpenAttempts: 3,
   };
 
   async connect(): Promise<void> {
@@ -43,7 +43,6 @@ export class CacheService {
           port: config.REDIS_PORT,
           connectTimeout: 5000,
           reconnectStrategy: (retries) => {
-            // Exponential backoff with max 3 seconds
             const delay = Math.min(retries * 50, 3000);
             logger.info(
               `Redis reconnection attempt ${retries}, waiting ${delay}ms`
@@ -104,7 +103,6 @@ export class CacheService {
     this.lastFailureTime = Date.now();
 
     if (this.circuitState === CircuitState.HALF_OPEN) {
-      // Failed during recovery attempt, go back to OPEN
       this.circuitState = CircuitState.OPEN;
       this.successCount = 0;
       logger.warn("Circuit breaker: Recovery failed, reopening circuit");
@@ -112,7 +110,6 @@ export class CacheService {
       this.circuitState === CircuitState.CLOSED &&
       this.failureCount >= this.circuitConfig.failureThreshold
     ) {
-      // Too many failures, open the circuit
       this.circuitState = CircuitState.OPEN;
       logger.error(
         `Circuit breaker: Opened after ${this.failureCount} failures`
@@ -124,12 +121,10 @@ export class CacheService {
     if (this.circuitState === CircuitState.HALF_OPEN) {
       this.successCount++;
       if (this.successCount >= this.circuitConfig.halfOpenAttempts) {
-        // Recovered successfully, close the circuit
         this.resetCircuit();
         logger.info("Circuit breaker: Closed after successful recovery");
       }
     } else if (this.circuitState === CircuitState.CLOSED) {
-      // Reset failure count on success
       this.failureCount = 0;
     }
   }
@@ -141,25 +136,21 @@ export class CacheService {
   }
 
   private shouldAttemptOperation(): boolean {
-    // Circuit is closed, allow operation
     if (this.circuitState === CircuitState.CLOSED) {
       return true;
     }
 
-    // Circuit is open, check if recovery timeout passed
     if (this.circuitState === CircuitState.OPEN) {
       const timeSinceFailure = Date.now() - this.lastFailureTime;
       if (timeSinceFailure >= this.circuitConfig.recoveryTimeout) {
-        // Try to recover
         this.circuitState = CircuitState.HALF_OPEN;
         this.successCount = 0;
         logger.info("Circuit breaker: Attempting recovery (HALF_OPEN)");
         return true;
       }
-      return false; // Still in timeout period
+      return false;
     }
 
-    // Circuit is half-open, allow operation to test recovery
     return true;
   }
 
@@ -288,7 +279,6 @@ export class CacheService {
     }
   }
 
-  // Health check method
   async ping(): Promise<boolean> {
     if (!this.isConnected || !this.client) {
       return false;
@@ -303,7 +293,6 @@ export class CacheService {
     }
   }
 
-  // Get circuit breaker status
   getStatus() {
     return {
       connected: this.isConnected,

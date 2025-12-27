@@ -1,6 +1,7 @@
+// src/config/database.ts - FIXED VERSION
 import { Sequelize, Options } from "sequelize";
 import { config } from "./env.config";
-import { logger } from "../shared/utils/AdvancedLogger";
+import { logger } from "../shared/utils/logger"; // ✅ FIXED: Correct import path
 import { ConnectionPoolManager } from "../shared/infrastructure/database/ConnectionPoolManager";
 
 // Connection pool configuration based on environment
@@ -35,7 +36,7 @@ const sequelizeConfig: Options = {
       const match = msg.match(/Executed \(.*?: (\d+)ms\)/);
       if (match && parseInt(match[1]) > 1000) {
         logger.warn("Slow query detected", {
-          query: msg,
+          query: msg.substring(0, 200),
           duration: `${match[1]}ms`,
         });
       }
