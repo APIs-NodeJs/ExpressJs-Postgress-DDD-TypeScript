@@ -2,7 +2,7 @@
 import { App } from "./app";
 import { config } from "./config/env.config";
 import { sequelize } from "./config/database";
-import { logger } from "./shared/utils/logger";
+import { logger } from "./shared/utils/AdvancedLogger";
 
 const app = new App();
 const PORT = config.PORT;
@@ -15,7 +15,7 @@ async function startServer() {
     server = app.app.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error("Failed to start server:", error);
     process.exit(1);
   }
@@ -34,7 +34,7 @@ async function gracefulShutdown(signal: string) {
 
         // Close other connections
         process.exit(0);
-      } catch (error) {
+      } catch (error: any) {
         logger.error("Error during shutdown:", error);
         process.exit(1);
       }

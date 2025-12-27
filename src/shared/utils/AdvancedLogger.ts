@@ -451,12 +451,10 @@ class AdvancedLogger {
  */
 export class PerformanceMonitor {
   private startTime: number;
-  private startMemory: NodeJS.MemoryUsage;
   private startCpu?: NodeJS.CpuUsage;
 
   constructor() {
     this.startTime = Date.now();
-    this.startMemory = process.memoryUsage();
     this.startCpu = process.cpuUsage();
   }
 
@@ -531,13 +529,6 @@ export class RequestContext {
   /**
    * Cleanup old contexts (run periodically)
    */
-  static cleanup(maxAge: number = 3600000): void {
-    // Implementation depends on tracking context creation time
-    // For simplicity, clear all if map grows too large
-    if (this.contexts.size > 10000) {
-      this.contexts.clear();
-    }
-  }
 }
 
 /**
