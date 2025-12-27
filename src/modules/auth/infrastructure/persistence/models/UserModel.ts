@@ -10,12 +10,16 @@ interface UserAttributes {
   emailVerified: boolean;
   firstName?: string;
   lastName?: string;
+  deletedAt?: Date | null;
+  deletedBy?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
-interface UserCreationAttributes
-  extends Optional<UserAttributes, "id" | "createdAt" | "updatedAt"> {}
+interface UserCreationAttributes extends Optional<
+  UserAttributes,
+  "id" | "createdAt" | "updatedAt" | "deletedAt" | "deletedBy"
+> {}
 
 export class UserModel
   extends Model<UserAttributes, UserCreationAttributes>
@@ -29,6 +33,8 @@ export class UserModel
   public emailVerified!: boolean;
   public firstName?: string;
   public lastName?: string;
+  public deletedAt?: Date | null;
+  public deletedBy?: string | null;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }
@@ -78,6 +84,18 @@ UserModel.init(
       allowNull: true,
       field: "last_name",
     },
+    deletedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null,
+      field: "deleted_at",
+    },
+    deletedBy: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      defaultValue: null,
+      field: "deleted_by",
+    },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -97,6 +115,7 @@ UserModel.init(
       { fields: ["email"] },
       { fields: ["workspace_id"] },
       { fields: ["status"] },
+      { fields: ["deleted_at"] }, // Index for soft delete queries
     ],
   }
 );

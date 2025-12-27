@@ -19,7 +19,9 @@ export class UserMapper {
       emailOrError.getValue(),
       passwordOrError.getValue(),
       model.workspaceId,
-      model.id
+      model.id,
+      model.firstName,
+      model.lastName
     );
 
     if (userOrError.isFailure) {
@@ -33,6 +35,7 @@ export class UserMapper {
       _createdAt: model.createdAt,
       _updatedAt: model.updatedAt,
       props: {
+        id: model.id,
         email: emailOrError.getValue(),
         password: passwordOrError.getValue(),
         workspaceId: model.workspaceId,
@@ -40,6 +43,8 @@ export class UserMapper {
         emailVerified: model.emailVerified,
         firstName: model.firstName,
         lastName: model.lastName,
+        deletedAt: model.deletedAt,
+        deletedBy: model.deletedBy,
       },
     });
 
@@ -56,6 +61,8 @@ export class UserMapper {
       emailVerified: user.emailVerified,
       firstName: user.firstName,
       lastName: user.lastName,
+      deletedAt: user.deletedAt,
+      deletedBy: user["props"]?.deletedBy,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
