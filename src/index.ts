@@ -1,7 +1,7 @@
 import { App } from "./app";
 import { config } from "./config/env.config";
 import { sequelize } from "./config/database";
-import { logger } from "./shared/utils/AdvancedLogger";
+import { logger } from "./shared/utils/logger";
 
 const app = new App();
 const PORT = config.PORT;

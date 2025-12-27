@@ -1,14 +1,21 @@
-// src/app.ts - FIXED VERSION with proper initialization order
 import express, { Application, Request, Response } from "express";
 import helmet from "helmet";
 import cors from "cors";
+import compression from "compression";
 import { initializeDatabase } from "./config/database";
 import { setupEventHandlers } from "./config/events";
 import { AuthModule } from "./modules/auth/AuthModule";
 import { errorHandler } from "./shared/middlewares/errorHandler";
-import { AdvancedRequestLogger } from "./shared/middlewares/advancedLogger";
+import {
+  requestLogger,
+  correlationId,
+  performanceMonitor,
+  activityTracker,
+} from "./shared/middlewares/requestLogger";
+import { sanitizeRequest } from "./shared/middlewares/sanitizeRequest";
+import { requestTimeout } from "./shared/middlewares/requestTimeout";
 import { cacheService } from "./shared/infrastructure/cache/CacheService";
-import { logger } from "./shared/utils/logger"; // ✅ FIXED: Correct import
+import { logger } from "./shared/utils/logger";
 import { HealthController } from "./shared/controllers/HealthController";
 import { createRateLimiter } from "./shared/middlewares/rateLimiter";
 
@@ -22,10 +29,14 @@ export class App {
     this.healthController = new HealthController();
   }
 
-  private configureMiddlewares(): void {
-    // LAYER 1: SECURITY & INFRASTRUCTURE
+  /**
+   * Configure security and infrastructure middleware
+   */
+  private configureSecurityMiddleware(): void {
+    // Trust proxy for correct IP detection
     this.app.set("trust proxy", 1);
 
+    // Helmet for security headers
     this.app.use(
       helmet({
         contentSecurityPolicy: {
@@ -44,6 +55,7 @@ export class App {
       })
     );
 
+    // CORS configuration
     this.app.use(
       cors({
         origin:
@@ -55,11 +67,20 @@ export class App {
       })
     );
 
-    // LAYER 2: REQUEST PARSING
+    // Compression
+    this.app.use(compression());
+  }
+
+  /**
+   * Configure request parsing middleware
+   */
+  private configureParsingMiddleware(): void {
+    // JSON parser with security
     this.app.use(
       express.json({
         limit: "10mb",
         reviver: (key, value) => {
+          // Prevent prototype pollution
           if (key === "__proto__" || key === "constructor") {
             return undefined;
           }
@@ -68,6 +89,7 @@ export class App {
       })
     );
 
+    // URL encoded parser
     this.app.use(
       express.urlencoded({
         extended: true,
@@ -75,30 +97,43 @@ export class App {
         parameterLimit: 10000,
       })
     );
+  }
 
-    // LAYER 3: LOGGING & MONITORING
-    this.app.use(AdvancedRequestLogger.correlationId());
-    this.app.use(AdvancedRequestLogger.middleware());
-    this.app.use(
-      AdvancedRequestLogger.performanceMonitor({
-        slow: 1000,
-        critical: 5000,
-      })
-    );
-    this.app.use(AdvancedRequestLogger.activityTracker());
-    this.app.use(AdvancedRequestLogger.metricsCollector());
+  /**
+   * Configure logging and monitoring middleware
+   */
+  private configureLoggingMiddleware(): void {
+    this.app.use(correlationId());
+    this.app.use(requestLogger());
+    this.app.use(performanceMonitor({ slow: 1000, critical: 5000 }));
+    this.app.use(activityTracker());
+  }
 
-    // LAYER 4: GLOBAL RATE LIMITING
+  /**
+   * Configure security and validation middleware
+   */
+  private configureValidationMiddleware(): void {
+    this.app.use(sanitizeRequest);
+    this.app.use(requestTimeout({ timeout: 30000 }));
+  }
+
+  /**
+   * Configure rate limiting
+   */
+  private configureRateLimiting(): void {
     const globalRateLimiter = createRateLimiter({
-      windowMs: 60 * 1000,
+      windowMs: 60 * 1000, // 1 minute
       max: 200,
       message: "Too many requests from this IP",
     });
     this.app.use(globalRateLimiter);
   }
 
+  /**
+   * Configure application routes
+   */
   private configureRoutes(): void {
-    // HEALTH CHECK ROUTES (No auth required)
+    // Health check routes (no auth required)
     this.app.get(
       "/health",
       this.healthController.check.bind(this.healthController)
@@ -112,11 +147,11 @@ export class App {
       this.healthController.liveness.bind(this.healthController)
     );
 
-    // API ROUTES
+    // API routes
     const authModule = AuthModule.getInstance();
     this.app.use("/api/auth", authModule.router);
 
-    // 404 HANDLER
+    // 404 handler
     this.app.use((req: Request, res: Response) => {
       logger.warn("404 - Route not found", {
         method: req.method,
@@ -138,11 +173,16 @@ export class App {
     });
   }
 
+  /**
+   * Configure error handling
+   */
   private configureErrorHandling(): void {
-    this.app.use(AdvancedRequestLogger.errorTracker());
     this.app.use(errorHandler);
   }
 
+  /**
+   * Initialize application
+   */
   public async initialize(): Promise<void> {
     if (this.isInitialized) {
       logger.warn("Application already initialized");
@@ -152,11 +192,11 @@ export class App {
     try {
       logger.info("🚀 Initializing application...");
 
-      // Step 1: Initialize database (critical dependency)
+      // Step 1: Initialize database
       logger.info("Step 1/4: Initializing database connection...");
       await initializeDatabase();
 
-      // Step 2: Initialize cache (optional but recommended)
+      // Step 2: Initialize cache (optional)
       logger.info("Step 2/4: Initializing cache service...");
       try {
         await cacheService.connect();
@@ -172,7 +212,11 @@ export class App {
 
       // Step 4: Configure Express app
       logger.info("Step 4/4: Configuring Express middleware and routes...");
-      this.configureMiddlewares();
+      this.configureSecurityMiddleware();
+      this.configureParsingMiddleware();
+      this.configureLoggingMiddleware();
+      this.configureValidationMiddleware();
+      this.configureRateLimiting();
       this.configureRoutes();
       this.configureErrorHandling();
 
@@ -187,6 +231,9 @@ export class App {
     }
   }
 
+  /**
+   * Start the application server
+   */
   public async start(port: number = 3000): Promise<void> {
     try {
       await this.initialize();
@@ -209,6 +256,9 @@ export class App {
     }
   }
 
+  /**
+   * Graceful shutdown
+   */
   public async shutdown(): Promise<void> {
     logger.info("🛑 Shutting down application gracefully...");
 

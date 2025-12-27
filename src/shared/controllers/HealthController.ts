@@ -2,7 +2,7 @@
 import { Request, Response } from "express";
 import { checkDatabaseHealth, getPoolManager } from "../../config/database";
 import { cacheService } from "../infrastructure/cache/CacheService";
-import { logger } from "../utils/AdvancedLogger";
+import { logger } from "../utils/logger";
 
 interface HealthStatus {
   status: "healthy" | "degraded" | "unhealthy";
