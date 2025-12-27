@@ -166,7 +166,7 @@ export class AuthController {
         {
           id: user.id,
           email: user.email,
-          workspaceId: user.workspaceId,
+          workspaceId: user.workspaceId, // Can be null
           status: user.status,
           emailVerified: user.emailVerified,
           firstName: user.firstName,

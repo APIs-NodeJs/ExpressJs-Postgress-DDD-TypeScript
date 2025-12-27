@@ -115,31 +115,43 @@ export class LoginHandler implements CommandHandler<
         return Result.fail<LoginResponse>("Invalid credentials");
       }
 
-      // Step 6: Clear failed attempts on successful login
+      // Step 6: Check if user has workspace
+      if (!user.hasWorkspace) {
+        logger.error("User login failed - no workspace assigned", {
+          userId: user.id,
+          email: email.value,
+          ipAddress: command.ipAddress,
+        });
+        return Result.fail<LoginResponse>(
+          "Account setup incomplete. Please contact support."
+        );
+      }
+
+      // Step 7: Clear failed attempts on successful login
       await this.clearFailedAttempts(email.value);
 
-      // Step 7: Generate tokens with enhanced payload
+      // Step 8: Generate tokens with enhanced payload
       const tokenPayload = {
         userId: user.id,
         email: user.email.value,
-        workspaceId: user.workspaceId,
+        workspaceId: user.workspaceId!, // Non-null assertion - we checked hasWorkspace above
       };
 
       const { accessToken, refreshToken } =
         this.tokenService.generateTokenPair(tokenPayload);
 
-      // Step 8: Get token expiration for response
+      // Step 9: Get token expiration for response
       const expiresIn =
         this.tokenService.getTimeUntilExpiration(accessToken) || 900000;
 
-      // Step 9: Record login event
+      // Step 10: Record login event
       user.recordLogin(command.ipAddress);
 
-      // Step 10: Publish events
+      // Step 11: Publish events
       await this.eventPublisher.publishAll(user.domainEvents);
       user.clearEvents();
 
-      // Step 11: Update last login cache
+      // Step 12: Update last login cache
       await this.updateLastLogin(user.id);
 
       const duration = Date.now() - startTime;

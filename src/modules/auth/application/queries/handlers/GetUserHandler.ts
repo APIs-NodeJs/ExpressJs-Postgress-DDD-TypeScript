@@ -6,7 +6,7 @@ import { IUserRepository } from "../../../domain/repositories/IUserRepository";
 interface UserResponse {
   id: string;
   email: string;
-  workspaceId: string;
+  workspaceId: string | null; // Changed to allow null
   status: string;
   emailVerified: boolean;
   firstName?: string;
@@ -14,9 +14,10 @@ interface UserResponse {
   createdAt: Date;
 }
 
-export class GetUserHandler
-  implements QueryHandler<GetUserQuery, UserResponse>
-{
+export class GetUserHandler implements QueryHandler<
+  GetUserQuery,
+  UserResponse
+> {
   constructor(private readonly userRepository: IUserRepository) {}
 
   async execute(query: GetUserQuery): Promise<Result<UserResponse>> {
@@ -29,7 +30,7 @@ export class GetUserHandler
     return Result.ok({
       id: user.id,
       email: user.email.value,
-      workspaceId: user.workspaceId,
+      workspaceId: user.workspaceId, // Can be null now
       status: user.status,
       emailVerified: user.emailVerified,
       firstName: user.firstName,
