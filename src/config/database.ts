@@ -1,6 +1,7 @@
 import { Sequelize, Options } from "sequelize";
 import { config } from "./env.config";
-import { logger } from "../shared/utils/logger";
+import { logger } from "../shared/utils/AdvancedLogger";
+import { ConnectionPoolManager } from "../shared/infrastructure/database/ConnectionPoolManager";
 
 // Connection pool configuration based on environment
 const getPoolConfig = () => {
@@ -10,9 +11,9 @@ const getPoolConfig = () => {
   return {
     max: isProd ? 20 : isTest ? 2 : 5,
     min: isProd ? 5 : 0,
-    acquire: 60000, // Maximum time (ms) to get connection before throwing error
-    idle: isTest ? 1000 : 10000, // Maximum time (ms) connection can be idle before released
-    evict: 1000, // Time interval (ms) to run eviction to remove idle connections
+    acquire: 60000,
+    idle: isTest ? 1000 : 10000,
+    evict: 1000,
   };
 };
 
@@ -24,35 +25,27 @@ const sequelizeConfig: Options = {
   database: config.DB_NAME,
   username: config.DB_USER,
   password: config.DB_PASSWORD,
-
-  // Connection pooling
   pool: getPoolConfig(),
 
-  // Logging
+  // Logging with performance tracking
   logging: (msg) => {
     if (config.NODE_ENV === "development") {
       logger.debug(msg);
     } else if (config.NODE_ENV === "production") {
-      // Only log slow queries in production
-      if (msg.includes("Executed") && msg.includes("ms")) {
-        const match = msg.match(/Executed \(.*?: (\d+)ms\)/);
-        if (match && parseInt(match[1]) > 1000) {
-          // Log queries taking more than 1 second
-          logger.warn("Slow query detected", { query: msg });
-        }
+      const match = msg.match(/Executed \(.*?: (\d+)ms\)/);
+      if (match && parseInt(match[1]) > 1000) {
+        logger.warn("Slow query detected", {
+          query: msg,
+          duration: `${match[1]}ms`,
+        });
       }
     }
-    // No logging in test environment
   },
 
-  // Performance
   benchmark: config.NODE_ENV === "development",
   logQueryParameters: config.NODE_ENV === "development",
-
-  // Timezone
   timezone: "+00:00",
 
-  // Retry logic for transient failures
   retry: {
     max: 3,
     timeout: 3000,
@@ -70,22 +63,23 @@ const sequelizeConfig: Options = {
     ],
   },
 
-  // Statement timeout (30 seconds)
   dialectOptions: {
     statement_timeout: 30000,
     idle_in_transaction_session_timeout: 60000,
   },
 
-  // Define options for models
   define: {
     timestamps: true,
     underscored: true,
     freezeTableName: true,
-    paranoid: false, // Set to true if you want soft deletes globally
+    paranoid: false,
   },
 };
 
 export const sequelize = new Sequelize(sequelizeConfig);
+
+// Connection pool manager instance
+let poolManager: ConnectionPoolManager | null = null;
 
 // Connection state tracking
 let isConnected = false;
@@ -114,23 +108,23 @@ export async function initializeDatabase(): Promise<void> {
       pool: getPoolConfig(),
     });
 
-    // Sync models in development (with safety check)
+    // Initialize connection pool manager
+    poolManager = new ConnectionPoolManager(sequelize);
+    poolManager.startMonitoring();
+
+    // Set up event listeners for pool monitoring
+    setupPoolEventListeners();
+
+    // Sync models in development
     if (config.NODE_ENV === "development") {
       logger.info("Synchronizing database models...");
-
-      // Use alter instead of force to prevent data loss
       await sequelize.sync({ alter: true });
-
       logger.info("✅ Database models synchronized");
     }
 
-    // Run migrations check in production
     if (config.NODE_ENV === "production") {
       logger.info("⚠️  Remember to run migrations: npm run migration:run");
     }
-
-    // Set up connection event handlers
-    setupConnectionHandlers();
   } catch (error) {
     isConnected = false;
 
@@ -141,7 +135,6 @@ export async function initializeDatabase(): Promise<void> {
       attempt: connectionAttempts,
     });
 
-    // Retry logic
     if (connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
       const retryDelay = Math.min(connectionAttempts * 2000, 10000);
       logger.info(`Retrying database connection in ${retryDelay}ms...`);
@@ -154,61 +147,56 @@ export async function initializeDatabase(): Promise<void> {
   }
 }
 
-function setupConnectionHandlers(): void {
-  // FIXED: Proper way to access the connection pool
-  try {
-    const connectionManager = sequelize.connectionManager as any;
-    const pool = connectionManager?.pool;
+function setupPoolEventListeners(): void {
+  if (!poolManager) return;
 
-    if (!pool) {
-      logger.warn("Connection pool not available for event handlers");
-      return;
-    }
-
-    // Check if pool has the 'on' method before setting up listeners
-    if (typeof pool.on === "function") {
-      // Handle connection errors after initial connection
-      pool.on("error", (err: Error) => {
-        logger.error("Database pool error", { error: err.message });
-        isConnected = false;
-      });
-
-      // Log when connections are acquired
-      pool.on("acquire", () => {
-        const poolSize = pool?.size || 0;
-        const available = pool?.available || 0;
-
-        logger.debug("Database connection acquired", {
-          poolSize,
-          available,
-          inUse: poolSize - available,
-        });
-      });
-
-      // Log when connections are released
-      pool.on("remove", () => {
-        logger.debug("Database connection removed from pool");
-      });
-
-      logger.debug("Database connection event handlers registered");
-    } else {
-      logger.warn("Connection pool does not support event listeners");
-    }
-  } catch (error) {
-    logger.warn("Failed to setup connection handlers", {
-      error: error instanceof Error ? error.message : "Unknown error",
+  // High usage warning
+  poolManager.on("high-usage", ({ usagePercent, metrics }) => {
+    logger.warn("⚠️  High database connection pool usage", {
+      usage: `${usagePercent.toFixed(1)}%`,
+      using: metrics.using,
+      size: metrics.size,
+      waiting: metrics.waiting,
     });
-  }
+  });
+
+  // Pool exhaustion
+  poolManager.on("pool-exhausted", (metrics) => {
+    logger.error("🚨 Database connection pool exhausted", {
+      waiting: metrics.waiting,
+      using: metrics.using,
+      size: metrics.size,
+      recommendation: "Consider increasing pool size or optimizing queries",
+    });
+  });
+
+  // High latency
+  poolManager.on("high-latency", ({ latency }) => {
+    logger.warn("⏱️  High database latency detected", {
+      latency: `${latency}ms`,
+      threshold: "1000ms",
+    });
+  });
+
+  // Unhealthy status
+  poolManager.on("unhealthy", ({ failures }) => {
+    logger.error("💀 Database marked as unhealthy", {
+      consecutiveFailures: failures,
+      action: "Check database server status",
+    });
+  });
 }
 
-// Graceful shutdown
 export async function closeDatabase(): Promise<void> {
-  if (!isConnected) {
-    return;
-  }
+  if (!isConnected) return;
 
   try {
     logger.info("Closing database connection...");
+
+    // Stop pool monitoring
+    if (poolManager) {
+      poolManager.stopMonitoring();
+    }
 
     await sequelize.close();
     isConnected = false;
@@ -222,7 +210,6 @@ export async function closeDatabase(): Promise<void> {
   }
 }
 
-// Health check
 export async function checkDatabaseHealth(): Promise<{
   healthy: boolean;
   details: any;
@@ -230,22 +217,7 @@ export async function checkDatabaseHealth(): Promise<{
   try {
     await sequelize.authenticate();
 
-    const connectionManager = sequelize.connectionManager as any;
-    const pool = connectionManager?.pool;
-
-    const poolInfo = pool
-      ? {
-          size: pool.size || 0,
-          available: pool.available || 0,
-          using: (pool.size || 0) - (pool.available || 0),
-          waiting: pool.pending || 0,
-        }
-      : {
-          size: 0,
-          available: 0,
-          using: 0,
-          waiting: 0,
-        };
+    const poolStats = poolManager ? poolManager.getStatistics() : null;
 
     return {
       healthy: true,
@@ -253,7 +225,7 @@ export async function checkDatabaseHealth(): Promise<{
         connected: isConnected,
         host: config.DB_HOST,
         database: config.DB_NAME,
-        pool: poolInfo,
+        poolStats,
       },
     };
   } catch (error) {
@@ -267,16 +239,12 @@ export async function checkDatabaseHealth(): Promise<{
   }
 }
 
-// Get connection status
 export function isConnectedToDatabase(): boolean {
   return isConnected;
 }
 
-// Manual connection retry (useful for health checks)
 export async function retryConnection(): Promise<boolean> {
-  if (isConnected) {
-    return true;
-  }
+  if (isConnected) return true;
 
   try {
     await sequelize.authenticate();
@@ -289,4 +257,9 @@ export async function retryConnection(): Promise<boolean> {
     });
     return false;
   }
+}
+
+// Export pool manager for advanced monitoring
+export function getPoolManager(): ConnectionPoolManager | null {
+  return poolManager;
 }
