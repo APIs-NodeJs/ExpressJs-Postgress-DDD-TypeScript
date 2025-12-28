@@ -20,11 +20,16 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "typeRoots": ["./node_modules/@types", "./src/shared/types"]
+    "typeRoots": ["./node_modules/@types", "./src/shared/types"],
+    "types": ["node"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"],
   "ts-node": {
-    "files": true
+    "files": true,
+    "transpileOnly": false,
+    "compilerOptions": {
+      "module": "commonjs"
+    }
   }
 }
