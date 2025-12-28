@@ -48,3 +48,8 @@ export class InternalServerError extends AppError {
     super(message, 500, 'INTERNAL_ERROR', false, details);
   }
 }
+
+// Type guard function
+export function isAppError(error: unknown): error is AppError {
+  return error instanceof AppError;
+}

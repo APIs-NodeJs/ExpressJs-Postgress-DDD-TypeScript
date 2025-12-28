@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { AppError, isAppError } from '../errors/AppError';
+import { isAppError } from '../errors/AppError';
 import { ResponseHandler } from '../responses/ResponseHandler';
 import { ZodError } from 'zod';
 
@@ -11,6 +11,7 @@ export const errorHandler = (
 ) => {
   const requestId = (req as any).id;
 
+  // Handle AppError instances
   if (isAppError(err)) {
     return ResponseHandler.error(
       res,
@@ -22,8 +23,9 @@ export const errorHandler = (
     );
   }
 
+  // Handle Zod validation errors
   if (err instanceof ZodError) {
-    const validationErrors = err.errors.map((e) => ({
+    const validationErrors = err.errors.map(e => ({
       field: e.path.join('.'),
       message: e.message,
       value: undefined,
@@ -32,10 +34,12 @@ export const errorHandler = (
     return ResponseHandler.validationError(res, validationErrors, requestId);
   }
 
+  // Handle Sequelize errors
   if (err.name && err.name.startsWith('Sequelize')) {
-    const message = err.name === 'SequelizeUniqueConstraintError'
-      ? 'Resource already exists'
-      : 'A database error occurred';
+    const message =
+      err.name === 'SequelizeUniqueConstraintError'
+        ? 'Resource already exists'
+        : 'A database error occurred';
 
     const statusCode = err.name === 'SequelizeUniqueConstraintError' ? 409 : 400;
 
@@ -49,15 +53,14 @@ export const errorHandler = (
     );
   }
 
+  // Handle unexpected errors
   console.error('Unexpected error:', err);
 
   return ResponseHandler.error(
     res,
     500,
     'INTERNAL_ERROR',
-    process.env.NODE_ENV === 'production'
-      ? 'An unexpected error occurred'
-      : err.message,
+    process.env.NODE_ENV === 'production' ? 'An unexpected error occurred' : err.message,
     process.env.NODE_ENV === 'development' ? err.stack : undefined,
     requestId
   );

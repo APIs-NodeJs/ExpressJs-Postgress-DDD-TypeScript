@@ -6,6 +6,7 @@ import {
   ConflictError,
   InternalServerError,
   AppError,
+  isAppError,
 } from './AppError';
 
 export class ErrorFactory {
@@ -34,13 +35,12 @@ export class ErrorFactory {
   }
 }
 
-export function isAppError(error: unknown): error is AppError {
-  return error instanceof AppError;
-}
-
 export function isOperationalError(error: unknown): boolean {
   if (isAppError(error)) {
     return error.isOperational;
   }
   return false;
 }
+
+// Re-export for convenience
+export { isAppError, AppError };
