@@ -1,20 +1,42 @@
+// src/shared/middlewares/authenticate.ts
 import { Request, Response, NextFunction } from 'express';
-import { jwtService } from '@/shared/infrastructure/auth/JwtService';
-import { ResponseHandler } from '@/shared/infrastructure/http/ResponseHandler';
+import { TokenService } from '../../modules/auth/domain/services/TokenService';
+import { ResponseHandler } from '../responses/ResponseHandler';
+
+export interface AuthenticatedRequest extends Request {
+  user: {
+    userId: string;
+    email: string;
+    role: string;
+    workspaceId?: string;
+  };
+}
 
 export function authenticate(req: Request, res: Response, next: NextFunction): void {
   try {
     const token = extractToken(req);
     if (!token) {
-      ResponseHandler.unauthorized(res, 'Missing authentication token');
+      ResponseHandler.unauthorized(res, 'Missing authentication token', (req as any).id);
       return;
     }
 
-    const payload = jwtService.verifyAccessToken(token);
-    req.user = payload;
+    const verifyResult = TokenService.verifyAccessToken(token);
+    if (verifyResult.isFailure) {
+      ResponseHandler.unauthorized(res, verifyResult.getErrorValue(), (req as any).id);
+      return;
+    }
+
+    const payload = verifyResult.getValue();
+    (req as AuthenticatedRequest).user = {
+      userId: payload.userId,
+      email: payload.email,
+      role: payload.role,
+      workspaceId: payload.workspaceId,
+    };
+
     next();
   } catch (error) {
-    ResponseHandler.unauthorized(res, 'Invalid or expired token');
+    ResponseHandler.unauthorized(res, 'Invalid or expired token', (req as any).id);
   }
 }
 
