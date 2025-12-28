@@ -4,7 +4,6 @@ import { ResponseHandler } from '../../../../shared/responses/ResponseHandler';
 import { CreateWorkspaceUseCase } from '../../application/useCases/CreateWorkspaceUseCase';
 import { AddMemberToWorkspaceUseCase } from '../../application/useCases/AddMemberToWorkspaceUseCase';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
-import { AuthenticatedRequest } from '../../../../shared/middlewares/authenticate';
 
 export class WorkspaceController {
   constructor(
@@ -14,13 +13,17 @@ export class WorkspaceController {
   ) {}
 
   async create(req: Request, res: Response): Promise<void> {
-    const requestId = (req as any).id;
-    const authReq = req as AuthenticatedRequest;
+    const requestId = req.id;
+
+    if (!req.user) {
+      ResponseHandler.unauthorized(res, 'Authentication required', requestId);
+      return;
+    }
 
     const result = await this.createWorkspaceUseCase.execute({
       name: req.body.name,
       description: req.body.description,
-      ownerId: authReq.user.userId,
+      ownerId: req.user.userId,
     });
 
     if (result.isFailure) {
@@ -44,7 +47,7 @@ export class WorkspaceController {
   }
 
   async getById(req: Request, res: Response): Promise<void> {
-    const requestId = (req as any).id;
+    const requestId = req.id;
     const { workspaceId } = req.params;
 
     const workspace = await this.workspaceRepository.findById(workspaceId);
@@ -79,14 +82,16 @@ export class WorkspaceController {
   }
 
   async getMyWorkspaces(req: Request, res: Response): Promise<void> {
-    const requestId = (req as any).id;
-    const authReq = req as AuthenticatedRequest;
+    const requestId = req.id;
 
-    const ownedWorkspaces = await this.workspaceRepository.findByOwnerId(
-      authReq.user.userId
-    );
+    if (!req.user) {
+      ResponseHandler.unauthorized(res, 'Authentication required', requestId);
+      return;
+    }
+
+    const ownedWorkspaces = await this.workspaceRepository.findByOwnerId(req.user.userId);
     const memberWorkspaces = await this.workspaceRepository.findByMemberId(
-      authReq.user.userId
+      req.user.userId
     );
 
     const allWorkspaces = [...ownedWorkspaces, ...memberWorkspaces];
@@ -102,7 +107,7 @@ export class WorkspaceController {
           name: w.name,
           slug: w.slug,
           ownerId: w.ownerId,
-          isOwner: w.isOwner(authReq.user.userId),
+          isOwner: w.isOwner(req.user!.userId),
           memberCount: w.members.length + 1,
           createdAt: w.createdAt,
         })),
@@ -113,7 +118,7 @@ export class WorkspaceController {
   }
 
   async addMember(req: Request, res: Response): Promise<void> {
-    const requestId = (req as any).id;
+    const requestId = req.id;
     const { workspaceId } = req.params;
 
     const result = await this.addMemberToWorkspaceUseCase.execute({
@@ -143,7 +148,7 @@ export class WorkspaceController {
   }
 
   async removeMember(req: Request, res: Response): Promise<void> {
-    const requestId = (req as any).id;
+    const requestId = req.id;
     const { workspaceId, userId } = req.params;
 
     const workspace = await this.workspaceRepository.findById(workspaceId);

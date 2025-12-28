@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { TokenService } from '../../modules/auth/domain/services/TokenService';
 import { ResponseHandler } from '../responses/ResponseHandler';
 
+// Export this interface for use in other files
 export interface AuthenticatedRequest extends Request {
   user: {
     userId: string;
@@ -16,18 +17,18 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   try {
     const token = extractToken(req);
     if (!token) {
-      ResponseHandler.unauthorized(res, 'Missing authentication token', (req as any).id);
+      ResponseHandler.unauthorized(res, 'Missing authentication token', req.id);
       return;
     }
 
     const verifyResult = TokenService.verifyAccessToken(token);
     if (verifyResult.isFailure) {
-      ResponseHandler.unauthorized(res, verifyResult.getErrorValue(), (req as any).id);
+      ResponseHandler.unauthorized(res, verifyResult.getErrorValue(), req.id);
       return;
     }
 
     const payload = verifyResult.getValue();
-    (req as AuthenticatedRequest).user = {
+    req.user = {
       userId: payload.userId,
       email: payload.email,
       role: payload.role,
@@ -36,7 +37,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
 
     next();
   } catch (error) {
-    ResponseHandler.unauthorized(res, 'Invalid or expired token', (req as any).id);
+    ResponseHandler.unauthorized(res, 'Invalid or expired token', req.id);
   }
 }
 

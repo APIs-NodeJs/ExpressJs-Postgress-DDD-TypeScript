@@ -16,7 +16,7 @@ export class AuthController {
   ) {}
 
   async register(req: Request, res: Response): Promise<void> {
-    const requestId = (req as any).id;
+    const requestId = req.id;
 
     const result = await this.registerUserUseCase.execute(req.body);
 
@@ -37,7 +37,7 @@ export class AuthController {
   }
 
   async login(req: Request, res: Response): Promise<void> {
-    const requestId = (req as any).id;
+    const requestId = req.id;
 
     const result = await this.loginUserUseCase.execute(req.body);
 
@@ -58,7 +58,7 @@ export class AuthController {
   }
 
   async googleAuthUrl(req: Request, res: Response): Promise<void> {
-    const requestId = (req as any).id;
+    const requestId = req.id;
     const state = Math.random().toString(36).substring(7);
 
     const authUrl = GoogleOAuthProvider.getAuthorizationUrl(state);
@@ -67,7 +67,7 @@ export class AuthController {
   }
 
   async googleAuthCallback(req: Request, res: Response): Promise<void> {
-    const requestId = (req as any).id;
+    const requestId = req.id;
 
     const result = await this.googleAuthUseCase.execute({
       code: req.body.code,
@@ -95,7 +95,7 @@ export class AuthController {
   }
 
   async refreshToken(req: Request, res: Response): Promise<void> {
-    const requestId = (req as any).id;
+    const requestId = req.id;
 
     const result = await this.refreshTokenUseCase.execute({
       refreshToken: req.body.refreshToken,
@@ -118,7 +118,7 @@ export class AuthController {
   }
 
   async logout(req: Request, res: Response): Promise<void> {
-    const requestId = (req as any).id;
+    const requestId = req.id;
 
     ResponseHandler.ok(
       res,

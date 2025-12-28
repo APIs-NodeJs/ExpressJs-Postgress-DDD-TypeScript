@@ -1,3 +1,6 @@
+// Import type augmentation at the top
+import './shared/types/express';
+
 import express, { Application } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -20,10 +23,12 @@ export class App {
 
   private setupMiddlewares(): void {
     this.app.use(helmet());
-    this.app.use(cors({
-      origin: config.ALLOWED_ORIGINS.split(','),
-      credentials: true,
-    }));
+    this.app.use(
+      cors({
+        origin: config.ALLOWED_ORIGINS.split(','),
+        credentials: true,
+      })
+    );
 
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));

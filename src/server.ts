@@ -1,3 +1,6 @@
+// Import type augmentation at the very top
+import './shared/types/express';
+
 import { App } from './app';
 import { config } from './shared/config/env.config';
 import { initializeDatabase, closeDatabase } from './shared/config/database.config';
@@ -39,7 +42,6 @@ async function startServer() {
 
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
-
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
