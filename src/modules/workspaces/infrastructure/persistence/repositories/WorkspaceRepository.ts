@@ -120,7 +120,7 @@ export class WorkspaceRepository
   protected toDomain(model: WorkspaceModel): Workspace {
     const members: WorkspaceMember[] = [];
 
-    if (model.members) {
+    if (model.members && Array.isArray(model.members)) {
       for (const memberModel of model.members) {
         const memberResult = WorkspaceMember.create(
           {

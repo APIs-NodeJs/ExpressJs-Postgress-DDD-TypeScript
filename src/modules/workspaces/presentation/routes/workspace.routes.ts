@@ -15,7 +15,6 @@ import { UserRepository } from '../../../users/infrastructure/persistence/reposi
 import { CreateWorkspaceUseCase } from '../../application/useCases/CreateWorkspaceUseCase';
 import { AddMemberToWorkspaceUseCase } from '../../application/useCases/AddMemberToWorkspaceUseCase';
 import { WorkspaceRole } from '../../domain/valueObjects/WorkspaceRole';
-import { Permission } from '../../domain/valueObjects/Permission';
 
 const router = Router();
 

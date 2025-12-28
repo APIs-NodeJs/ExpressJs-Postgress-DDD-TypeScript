@@ -19,7 +19,7 @@ const envSchema = z.object({
   DB_USER: z.string().min(1),
   DB_PASSWORD: z.string().min(1),
 
-  // Redis (Optional)
+  // Redis
   REDIS_HOST: z.string().optional(),
   REDIS_PORT: z.string().transform(Number).optional(),
   REDIS_PASSWORD: z.string().optional(),
@@ -30,12 +30,10 @@ const envSchema = z.object({
   // CORS
   ALLOWED_ORIGINS: z.string().default('http://localhost:3000'),
 
-  // JWT
-  JWT_SECRET: z.string().min(32, 'JWT secret must be at least 32 characters'),
+  // JWT (IMPORTANT PART)
+  JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default('15m'),
-  JWT_REFRESH_SECRET: z
-    .string()
-    .min(32, 'JWT refresh secret must be at least 32 characters'),
+  JWT_REFRESH_SECRET: z.string().min(32),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
 
   // Google OAuth
@@ -50,8 +48,8 @@ function validateEnv(): EnvConfig {
   const parsed = envSchema.safeParse(process.env);
 
   if (!parsed.success) {
-    console.error('❌ Invalid environment variables:');
-    console.error(JSON.stringify(parsed.error.format(), null, 2));
+    console.error('❌ Invalid environment variables');
+    console.error(parsed.error.format());
     process.exit(1);
   }
 

@@ -1,7 +1,7 @@
 // src/modules/auth/application/useCases/RefreshTokenUseCase.ts
 import { IUseCase } from '../../../../core/application/UseCase';
 import { Result } from '../../../../core/domain/Result';
-import { IUserRepository } from '../../domain/repositories/IUserRepository';
+import { IUserRepository } from '../../../users/domain/repositories/IUserRepository';
 import { IRefreshTokenRepository } from '../../domain/repositories/IRefreshTokenRepository';
 import { TokenService, TokenPayload } from '../../domain/services/TokenService';
 import { RefreshToken } from '../../domain/entities/RefreshToken';

@@ -18,6 +18,19 @@ export class GoogleOAuthProvider {
   private static readonly GOOGLE_USERINFO_URL =
     'https://www.googleapis.com/oauth2/v2/userinfo';
 
+  private static validateConfig(): Result<void> {
+    if (!config.GOOGLE_CLIENT_ID) {
+      return Result.fail('Google Client ID is not configured');
+    }
+    if (!config.GOOGLE_CLIENT_SECRET) {
+      return Result.fail('Google Client Secret is not configured');
+    }
+    if (!config.GOOGLE_REDIRECT_URI) {
+      return Result.fail('Google Redirect URI is not configured');
+    }
+    return Result.ok();
+  }
+
   public static async exchangeCodeForTokens(code: string): Promise<
     Result<{
       access_token: string;
@@ -25,12 +38,17 @@ export class GoogleOAuthProvider {
       expires_in: number;
     }>
   > {
+    const configValidation = this.validateConfig();
+    if (configValidation.isFailure) {
+      return Result.fail(configValidation.getErrorValue());
+    }
+
     try {
       const response = await axios.post(this.GOOGLE_TOKEN_URL, {
         code,
-        client_id: config.GOOGLE_CLIENT_ID,
-        client_secret: config.GOOGLE_CLIENT_SECRET,
-        redirect_uri: config.GOOGLE_REDIRECT_URI,
+        client_id: config.GOOGLE_CLIENT_ID!,
+        client_secret: config.GOOGLE_CLIENT_SECRET!,
+        redirect_uri: config.GOOGLE_REDIRECT_URI!,
         grant_type: 'authorization_code',
       });
 
@@ -59,9 +77,14 @@ export class GoogleOAuthProvider {
   }
 
   public static getAuthorizationUrl(state: string): string {
+    const configValidation = this.validateConfig();
+    if (configValidation.isFailure) {
+      throw new Error(configValidation.getErrorValue());
+    }
+
     const params = new URLSearchParams({
-      client_id: config.GOOGLE_CLIENT_ID,
-      redirect_uri: config.GOOGLE_REDIRECT_URI,
+      client_id: config.GOOGLE_CLIENT_ID!,
+      redirect_uri: config.GOOGLE_REDIRECT_URI!,
       response_type: 'code',
       scope: 'openid email profile',
       access_type: 'offline',

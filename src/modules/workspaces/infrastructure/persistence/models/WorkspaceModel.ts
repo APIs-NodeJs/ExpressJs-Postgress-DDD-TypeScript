@@ -1,6 +1,7 @@
 // src/modules/workspaces/infrastructure/persistence/models/WorkspaceModel.ts
 import { Model, DataTypes, Optional } from 'sequelize';
 import { sequelize } from '../../../../../shared/config/database.config';
+import { WorkspaceMemberModel } from './WorkspaceMemberModel';
 
 interface WorkspaceAttributes {
   id: string;
@@ -28,6 +29,7 @@ export class WorkspaceModel
   public ownerId!: string;
   public description?: string;
   public isActive!: boolean;
+  public members?: WorkspaceMemberModel[];
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }

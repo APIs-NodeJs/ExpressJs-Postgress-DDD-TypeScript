@@ -4,7 +4,7 @@ import { Result } from '../../../../core/domain/Result';
 import { User } from '../../../users/domain/entities/User';
 import { Email } from '../../../users/domain/valueObjects/Email';
 import { UserRole } from '../../../users/domain/valueObjects/UserRole';
-import { IUserRepository } from '../../domain/repositories/IUserRepository';
+import { IUserRepository } from '../../../users/domain/repositories/IUserRepository';
 import { PasswordService } from '../../domain/services/PasswordService';
 import { TokenService, TokenPayload } from '../../domain/services/TokenService';
 import { RefreshToken } from '../../domain/entities/RefreshToken';

@@ -2,7 +2,7 @@
 import { IUseCase } from '../../../../core/application/UseCase';
 import { Result } from '../../../../core/domain/Result';
 import { Email } from '../../../users/domain/valueObjects/Email';
-import { IUserRepository } from '../../domain/repositories/IUserRepository';
+import { IUserRepository } from '../../../users/domain/repositories/IUserRepository';
 import { PasswordService } from '../../domain/services/PasswordService';
 import { TokenService, TokenPayload } from '../../domain/services/TokenService';
 import { RefreshToken } from '../../domain/entities/RefreshToken';
