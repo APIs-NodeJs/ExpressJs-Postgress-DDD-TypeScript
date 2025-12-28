@@ -1,19 +1,15 @@
 export class Result<T> {
-  public isSuccess: boolean;
-  public isFailure: boolean;
-  public error?: string;
-  private _value?: T;
+  public readonly isSuccess: boolean;
+  public readonly isFailure: boolean;
+  public readonly error?: string;
+  private readonly _value?: T;
 
   private constructor(isSuccess: boolean, error?: string, value?: T) {
     if (isSuccess && error) {
-      throw new Error(
-        "InvalidOperation: A result cannot be successful and contain an error"
-      );
+      throw new Error('Invalid Result: Success cannot have an error');
     }
     if (!isSuccess && !error) {
-      throw new Error(
-        "InvalidOperation: A failing result needs to contain an error message"
-      );
+      throw new Error('Invalid Result: Failure must have an error message');
     }
 
     this.isSuccess = isSuccess;
@@ -26,12 +22,16 @@ export class Result<T> {
 
   public getValue(): T {
     if (!this.isSuccess) {
-      throw new Error(
-        "Can't get the value of an error result. Use 'errorValue' instead."
-      );
+      throw new Error(`Cannot get value from failed result. Error: ${this.error}`);
     }
-
     return this._value as T;
+  }
+
+  public getErrorValue(): string {
+    if (this.isSuccess) {
+      throw new Error('Cannot get error from successful result');
+    }
+    return this.error!;
   }
 
   public static ok<U>(value?: U): Result<U> {

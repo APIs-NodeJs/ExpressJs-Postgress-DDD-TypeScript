@@ -1,7 +1,7 @@
-import { Result } from "../domain/Result";
+import { Result } from '../domain/Result';
 
-export interface Query {}
+export interface IQuery {}
 
-export interface QueryHandler<TQuery extends Query, TResponse> {
+export interface IQueryHandler<TQuery extends IQuery, TResponse> {
   execute(query: TQuery): Promise<Result<TResponse>>;
 }

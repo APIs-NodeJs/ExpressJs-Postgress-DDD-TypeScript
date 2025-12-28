@@ -1,7 +1,7 @@
-import { Result } from "../domain/Result";
+import { Result } from '../domain/Result';
 
-export interface Command {}
+export interface ICommand {}
 
-export interface CommandHandler<TCommand extends Command, TResponse> {
+export interface ICommandHandler<TCommand extends ICommand, TResponse> {
   execute(command: TCommand): Promise<Result<TResponse>>;
 }

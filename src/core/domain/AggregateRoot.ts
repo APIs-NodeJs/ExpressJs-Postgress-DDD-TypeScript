@@ -1,17 +1,27 @@
-import { DomainEvent } from "./DomainEvent";
-import { Entity } from "./Entity";
-export abstract class AggregateRoot<T> extends Entity<T> {
-  private _domainEvents: DomainEvent[] = [];
+import { Entity } from './Entity';
+import { IDomainEvent } from './DomainEvent';
 
-  get domainEvents(): DomainEvent[] {
+export abstract class AggregateRoot<TId> extends Entity<TId> {
+  private _domainEvents: IDomainEvent[] = [];
+  private _version: number = 0;
+
+  get domainEvents(): ReadonlyArray<IDomainEvent> {
     return this._domainEvents;
   }
 
-  protected addDomainEvent(event: DomainEvent): void {
+  get version(): number {
+    return this._version;
+  }
+
+  protected addDomainEvent(event: IDomainEvent): void {
     this._domainEvents.push(event);
   }
 
   public clearEvents(): void {
     this._domainEvents = [];
+  }
+
+  protected incrementVersion(): void {
+    this._version++;
   }
 }

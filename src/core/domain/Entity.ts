@@ -1,15 +1,15 @@
-export abstract class Entity<T> {
-  protected readonly _id: T;
+export abstract class Entity<TId> {
+  protected readonly _id: TId;
   protected readonly _createdAt: Date;
   protected _updatedAt: Date;
 
-  constructor(id: T, createdAt?: Date, updatedAt?: Date) {
+  constructor(id: TId, createdAt?: Date, updatedAt?: Date) {
     this._id = id;
     this._createdAt = createdAt || new Date();
     this._updatedAt = updatedAt || new Date();
   }
 
-  get id(): T {
+  get id(): TId {
     return this._id;
   }
 
@@ -25,7 +25,7 @@ export abstract class Entity<T> {
     this._updatedAt = new Date();
   }
 
-  public equals(entity?: Entity<T>): boolean {
+  public equals(entity?: Entity<TId>): boolean {
     if (!entity) return false;
     if (this === entity) return true;
     return this._id === entity._id;

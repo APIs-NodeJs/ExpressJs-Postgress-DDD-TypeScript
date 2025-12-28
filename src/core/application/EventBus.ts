@@ -1,15 +1,21 @@
-import { DomainEvent } from "../domain/DomainEvent";
+import { IDomainEvent } from '../domain/DomainEvent';
 
-export interface EventHandler<T extends DomainEvent> {
+export interface IEventHandler<T extends IDomainEvent> {
   handle(event: T): Promise<void>;
 }
 
-export class EventBus {
-  private handlers: Map<string, EventHandler<any>[]> = new Map();
+export interface IEventBus {
+  subscribe<T extends IDomainEvent>(eventName: string, handler: IEventHandler<T>): void;
+  publish(event: IDomainEvent): Promise<void>;
+  publishAll(events: IDomainEvent[]): Promise<void>;
+}
 
-  public subscribe<T extends DomainEvent>(
+export class InMemoryEventBus implements IEventBus {
+  private handlers: Map<string, IEventHandler<any>[]> = new Map();
+
+  public subscribe<T extends IDomainEvent>(
     eventName: string,
-    handler: EventHandler<T>
+    handler: IEventHandler<T>
   ): void {
     if (!this.handlers.has(eventName)) {
       this.handlers.set(eventName, []);
@@ -17,19 +23,24 @@ export class EventBus {
     this.handlers.get(eventName)!.push(handler);
   }
 
-  public async publish(event: DomainEvent): Promise<void> {
+  public async publish(event: IDomainEvent): Promise<void> {
     const eventHandlers = this.handlers.get(event.eventName);
     if (!eventHandlers || eventHandlers.length === 0) {
       return;
     }
 
-    await Promise.all(eventHandlers.map((handler) => handler.handle(event)));
+    const promises = eventHandlers.map(handler =>
+      handler.handle(event).catch(error => {
+        console.error(`Error handling event ${event.eventName}:`, error);
+      })
+    );
+
+    await Promise.all(promises);
   }
 
-  public async publishAll(events: DomainEvent[]): Promise<void> {
-    await Promise.all(events.map((event) => this.publish(event)));
+  public async publishAll(events: IDomainEvent[]): Promise<void> {
+    await Promise.all(events.map(event => this.publish(event)));
   }
 }
 
-// Singleton instance
-export const eventBus = new EventBus();
+export const eventBus = new InMemoryEventBus();
