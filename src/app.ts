@@ -1,6 +1,3 @@
-// Import type augmentation at the top
-import './shared/types/express';
-
 import express, { Application } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
