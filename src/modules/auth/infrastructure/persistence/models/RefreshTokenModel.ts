@@ -40,6 +40,7 @@ RefreshTokenModel.init(
     userId: {
       type: DataTypes.UUID,
       allowNull: false,
+      field: 'user_id', // Map to snake_case
       references: {
         model: 'users',
         key: 'id',
@@ -49,29 +50,39 @@ RefreshTokenModel.init(
       type: DataTypes.TEXT,
       allowNull: false,
       unique: true,
+      field: 'token',
     },
     expiresAt: {
       type: DataTypes.DATE,
       allowNull: false,
+      field: 'expires_at', // Map to snake_case
     },
     isRevoked: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
+      field: 'is_revoked', // Map to snake_case
     },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
+      field: 'created_at', // Map to snake_case
     },
     updatedAt: {
       type: DataTypes.DATE,
       allowNull: false,
+      field: 'updated_at', // Map to snake_case
     },
   },
   {
     sequelize,
     tableName: 'refresh_tokens',
     timestamps: true,
-    indexes: [{ fields: ['userId'] }, { fields: ['token'] }, { fields: ['expiresAt'] }],
+    underscored: false, // We're handling field mapping manually
+    indexes: [
+      { fields: ['user_id'] }, // Use snake_case
+      { fields: ['token'] },
+      { fields: ['expires_at'] }, // Use snake_case
+    ],
   }
 );

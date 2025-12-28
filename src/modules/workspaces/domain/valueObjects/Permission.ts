@@ -1,4 +1,6 @@
 // src/modules/workspaces/domain/valueObjects/Permission.ts
+import { WorkspaceRole } from './WorkspaceRole';
+
 export enum Permission {
   // Workspace permissions
   WORKSPACE_UPDATE = 'WORKSPACE_UPDATE',

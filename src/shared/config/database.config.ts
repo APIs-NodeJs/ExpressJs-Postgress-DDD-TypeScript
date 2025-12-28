@@ -26,7 +26,7 @@ const sequelizeConfig: Options = {
   timezone: '+00:00',
   define: {
     timestamps: true,
-    underscored: true,
+    underscored: false, // We handle field mapping manually in each model
     freezeTableName: true,
   },
 };
@@ -37,6 +37,16 @@ export async function initializeDatabase(): Promise<void> {
   try {
     await sequelize.authenticate();
     console.log('✅ Database connection established');
+
+    // Import all models first (this ensures they're registered with Sequelize)
+    await import('../../modules/users/infrastructure/persistence/models/UserModel');
+    await import('../../modules/workspaces/infrastructure/persistence/models/WorkspaceModel');
+    await import('../../modules/workspaces/infrastructure/persistence/models/WorkspaceMemberModel');
+    await import('../../modules/auth/infrastructure/persistence/models/RefreshTokenModel');
+
+    // Set up associations after all models are loaded
+    const { setupModelAssociations } = await import('./modelAssociations');
+    setupModelAssociations();
 
     if (config.NODE_ENV === 'development') {
       await sequelize.sync({ alter: false });

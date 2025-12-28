@@ -42,6 +42,7 @@ WorkspaceMemberModel.init(
     workspaceId: {
       type: DataTypes.UUID,
       allowNull: false,
+      field: 'workspace_id', // Map to snake_case
       references: {
         model: 'workspaces',
         key: 'id',
@@ -50,6 +51,7 @@ WorkspaceMemberModel.init(
     userId: {
       type: DataTypes.UUID,
       allowNull: false,
+      field: 'user_id', // Map to snake_case
       references: {
         model: 'users',
         key: 'id',
@@ -58,53 +60,38 @@ WorkspaceMemberModel.init(
     role: {
       type: DataTypes.STRING(50),
       allowNull: false,
+      field: 'role',
     },
     permissions: {
       type: DataTypes.ARRAY(DataTypes.STRING),
       allowNull: false,
       defaultValue: [],
+      field: 'permissions',
     },
     joinedAt: {
       type: DataTypes.DATE,
       allowNull: false,
+      field: 'joined_at', // Map to snake_case
     },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
+      field: 'created_at', // Map to snake_case
     },
     updatedAt: {
       type: DataTypes.DATE,
       allowNull: false,
+      field: 'updated_at', // Map to snake_case
     },
   },
   {
     sequelize,
     tableName: 'workspace_members',
     timestamps: true,
+    underscored: false, // We're handling field mapping manually
     indexes: [
-      { fields: ['workspaceId', 'userId'], unique: true },
-      { fields: ['userId'] },
+      { fields: ['workspace_id', 'user_id'], unique: true }, // Use snake_case
+      { fields: ['user_id'] }, // Use snake_case
     ],
   }
 );
-
-// Setup associations
-UserModel.hasMany(WorkspaceModel, { foreignKey: 'ownerId', as: 'ownedWorkspaces' });
-WorkspaceModel.belongsTo(UserModel, { foreignKey: 'ownerId', as: 'owner' });
-
-UserModel.hasMany(WorkspaceMemberModel, {
-  foreignKey: 'userId',
-  as: 'workspaceMemberships',
-});
-WorkspaceModel.hasMany(WorkspaceMemberModel, {
-  foreignKey: 'workspaceId',
-  as: 'members',
-});
-WorkspaceMemberModel.belongsTo(UserModel, { foreignKey: 'userId', as: 'user' });
-WorkspaceMemberModel.belongsTo(WorkspaceModel, {
-  foreignKey: 'workspaceId',
-  as: 'workspace',
-});
-
-UserModel.hasMany(RefreshTokenModel, { foreignKey: 'userId', as: 'refreshTokens' });
-RefreshTokenModel.belongsTo(UserModel, { foreignKey: 'userId', as: 'user' });
