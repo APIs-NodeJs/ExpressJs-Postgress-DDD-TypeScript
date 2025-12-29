@@ -1,3 +1,4 @@
+// src/core/application/EventBus.ts
 import { IDomainEvent } from '../domain/DomainEvent';
 
 export interface IEventHandler<T extends IDomainEvent> {
@@ -7,7 +8,7 @@ export interface IEventHandler<T extends IDomainEvent> {
 export interface IEventBus {
   subscribe<T extends IDomainEvent>(eventName: string, handler: IEventHandler<T>): void;
   publish(event: IDomainEvent): Promise<void>;
-  publishAll(events: IDomainEvent[]): Promise<void>;
+  publishAll(events: readonly IDomainEvent[]): Promise<void>; // Changed to readonly
 }
 
 export class InMemoryEventBus implements IEventBus {
@@ -38,7 +39,7 @@ export class InMemoryEventBus implements IEventBus {
     await Promise.all(promises);
   }
 
-  public async publishAll(events: IDomainEvent[]): Promise<void> {
+  public async publishAll(events: readonly IDomainEvent[]): Promise<void> {
     await Promise.all(events.map(event => this.publish(event)));
   }
 }
