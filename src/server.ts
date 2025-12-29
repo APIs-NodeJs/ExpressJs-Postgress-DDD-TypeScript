@@ -1,6 +1,10 @@
+// src/server.ts
+import http from 'http';
 import { App } from './app';
 import { config } from './shared/config/env.config';
 import { initializeDatabase, closeDatabase } from './shared/config/database.config';
+import { SocketServer } from './shared/infrastructure/socket/SocketServer';
+import { setupSocketGateways } from './shared/infrastructure/socket/setupGateways';
 
 const PORT = config.PORT;
 
@@ -9,9 +13,16 @@ async function startServer() {
     await initializeDatabase();
 
     const application = new App();
-    const server = application.app.listen(PORT, () => {
+    const httpServer = http.createServer(application.app);
+
+    // Initialize Socket.IO
+    const socketServer = new SocketServer(httpServer);
+    setupSocketGateways(socketServer);
+
+    const server = httpServer.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📚 Health check: http://localhost:${PORT}/api/v1/health`);
+      console.log(`🔌 WebSocket server initialized`);
       console.log(`🌍 Environment: ${config.NODE_ENV}`);
     });
 
@@ -22,6 +33,9 @@ async function startServer() {
         console.log('HTTP server closed');
 
         try {
+          await socketServer.close();
+          console.log('Socket.IO server closed');
+
           await closeDatabase();
           console.log('✅ Graceful shutdown completed');
           process.exit(0);

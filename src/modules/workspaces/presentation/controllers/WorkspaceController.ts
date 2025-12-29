@@ -4,6 +4,7 @@ import { ResponseHandler } from '../../../../shared/responses/ResponseHandler';
 import { CreateWorkspaceUseCase } from '../../application/useCases/CreateWorkspaceUseCase';
 import { AddMemberToWorkspaceUseCase } from '../../application/useCases/AddMemberToWorkspaceUseCase';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
+import { eventBus } from '../../../../core/application/EventBus';
 
 export class WorkspaceController {
   constructor(
@@ -38,12 +39,16 @@ export class WorkspaceController {
       return;
     }
 
-    ResponseHandler.created(
-      res,
-      result.getValue(),
-      'Workspace created successfully',
-      requestId
-    );
+    const data = result.getValue();
+
+    // Publish domain events (will trigger Socket.IO notifications)
+    const workspace = await this.workspaceRepository.findById(data.workspace.id);
+    if (workspace) {
+      await eventBus.publishAll(workspace.domainEvents);
+      workspace.clearEvents();
+    }
+
+    ResponseHandler.created(res, data, 'Workspace created successfully', requestId);
   }
 
   async getById(req: Request, res: Response): Promise<void> {
@@ -139,6 +144,13 @@ export class WorkspaceController {
       return;
     }
 
+    // Publish domain events (will trigger Socket.IO notifications)
+    const workspace = await this.workspaceRepository.findById(workspaceId);
+    if (workspace) {
+      await eventBus.publishAll(workspace.domainEvents);
+      workspace.clearEvents();
+    }
+
     ResponseHandler.created(
       res,
       result.getValue(),
@@ -158,6 +170,7 @@ export class WorkspaceController {
       return;
     }
 
+    const member = workspace.getMember(userId);
     const removeResult = workspace.removeMember(userId);
 
     if (removeResult.isFailure) {
@@ -173,6 +186,20 @@ export class WorkspaceController {
     }
 
     await this.workspaceRepository.save(workspace);
+
+    // Get socket gateways and notify
+    const { getSocketGateways } =
+      await import('../../../../shared/infrastructure/socket/setupGateways');
+    const gateways = getSocketGateways();
+
+    if (gateways && member) {
+      // Notify via Socket.IO
+      const user = member.userId;
+      gateways.workspace.notifyMemberRemoved(workspaceId, {
+        userId: user,
+        email: req.user?.email || '',
+      });
+    }
 
     ResponseHandler.ok(
       res,
