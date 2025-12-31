@@ -7,18 +7,15 @@ import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceReposi
 import { IUserRepository } from '../../../users/domain/repositories/IUserRepository';
 import { eventBus } from '../../../../core/application/EventBus';
 import { IWorkspaceNotificationService } from '../../application/services/WorkspaceNotificationService';
+import { FilterBuilder } from '../../../../shared/types/FilterTypes';
 
-/**
- * Clean WorkspaceController following DDD principles
- * No direct infrastructure dependencies
- */
 export class WorkspaceController {
   constructor(
     private createWorkspaceUseCase: CreateWorkspaceUseCase,
     private addMemberToWorkspaceUseCase: AddMemberToWorkspaceUseCase,
     private workspaceRepository: IWorkspaceRepository,
     private userRepository: IUserRepository,
-    private notificationService: IWorkspaceNotificationService // Injected dependency
+    private notificationService: IWorkspaceNotificationService
   ) {}
 
   async create(req: Request, res: Response): Promise<void> {
@@ -130,6 +127,77 @@ export class WorkspaceController {
     );
   }
 
+  /**
+   * NEW: Search workspaces with filters and pagination
+   */
+  async search(req: Request, res: Response): Promise<void> {
+    const requestId = req.id;
+
+    if (!req.user) {
+      ResponseHandler.unauthorized(res, 'Authentication required', requestId);
+      return;
+    }
+
+    // Build filters
+    const filters = new FilterBuilder();
+
+    // Always show only active workspaces
+    filters.equals('isActive', true);
+
+    // Add search query if provided
+    const searchQuery = req.query.query as string | undefined;
+    if (searchQuery) {
+      filters.like('name', searchQuery);
+    }
+
+    // Pagination
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    // Sorting
+    const sortBy = (req.query.sortBy as string) || 'createdAt';
+    const sortOrder = (req.query.sortOrder as 'ASC' | 'DESC') || 'DESC';
+
+    try {
+      // Use repository search method with QueryBuilder
+      const result = await this.workspaceRepository.search({
+        filters: filters.build(),
+        sortField: sortBy,
+        sortOrder,
+        page,
+        limit,
+      });
+
+      // Filter to only workspaces where user is owner or member
+      const userWorkspaces = result.data.filter(w => w.isMember(req.user!.userId));
+
+      ResponseHandler.paginated(
+        res,
+        userWorkspaces.map(w => ({
+          id: w.id,
+          name: w.name,
+          slug: w.slug,
+          ownerId: w.ownerId,
+          isOwner: w.isOwner(req.user!.userId),
+          memberCount: w.members.length + 1,
+          createdAt: w.createdAt,
+        })),
+        result.meta,
+        'Workspaces found',
+        requestId
+      );
+    } catch (error) {
+      ResponseHandler.error(
+        res,
+        500,
+        'SEARCH_FAILED',
+        'Failed to search workspaces',
+        error instanceof Error ? error.message : undefined,
+        requestId
+      );
+    }
+  }
+
   async addMember(req: Request, res: Response): Promise<void> {
     const requestId = req.id;
     const { workspaceId } = req.params;
@@ -208,7 +276,7 @@ export class WorkspaceController {
 
     await this.workspaceRepository.save(workspace);
 
-    // Use notification service instead of direct gateway access
+    // Use notification service
     if (member && user) {
       await this.notificationService.notifyMemberRemoved(
         {

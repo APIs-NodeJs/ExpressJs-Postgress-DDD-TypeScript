@@ -8,6 +8,14 @@ import { WorkspaceMemberModel } from '../models/WorkspaceMemberModel';
 import { UniqueEntityID } from '../../../../../core/domain/Identifier';
 import { WorkspaceRole } from '../../../domain/valueObjects/WorkspaceRole';
 import { Permission } from '../../../domain/valueObjects/Permission';
+import {
+  QueryBuilder,
+  QueryOptions,
+} from '../../../../../core/infrastructure/persistence/QueryBuilder';
+import {
+  PaginatedResult,
+  PaginationMeta,
+} from '../../../../../shared/types/PaginationTypes';
 
 export class WorkspaceRepository
   extends BaseRepository<Workspace, WorkspaceModel, string>
@@ -60,6 +68,61 @@ export class WorkspaceRepository
     return models.map(model => this.toDomain(model));
   }
 
+  /**
+   * NEW: Search workspaces with filters and pagination
+   */
+  async search(options: QueryOptions): Promise<PaginatedResult<Workspace>> {
+    const query = QueryBuilder.build(options);
+
+    const { count, rows } = await WorkspaceModel.findAndCountAll({
+      where: query.where,
+      order: query.order,
+      limit: query.limit,
+      offset: query.offset,
+      include: [{ model: WorkspaceMemberModel, as: 'members' }],
+      transaction: this.getTransaction(),
+    });
+
+    const workspaces = rows.map(model => this.toDomain(model));
+
+    const meta: PaginationMeta = {
+      page: options.page || 1,
+      limit: options.limit || 20,
+      total: count,
+      totalPages: Math.ceil(count / (options.limit || 20)),
+      hasNextPage: (options.page || 1) * (options.limit || 20) < count,
+      hasPreviousPage: (options.page || 1) > 1,
+    };
+
+    return {
+      data: workspaces,
+      meta,
+    };
+  }
+
+  /**
+   * NEW: Find active workspaces by owner
+   */
+  async findActiveByOwnerId(ownerId: string): Promise<Workspace[]> {
+    const query = QueryBuilder.build({
+      filters: [
+        { field: 'ownerId', operator: 'eq', value: ownerId },
+        { field: 'isActive', operator: 'eq', value: true },
+      ],
+      sortField: 'createdAt',
+      sortOrder: 'DESC',
+    });
+
+    const models = await WorkspaceModel.findAll({
+      where: query.where,
+      order: query.order,
+      include: [{ model: WorkspaceMemberModel, as: 'members' }],
+      transaction: this.getTransaction(),
+    });
+
+    return models.map(model => this.toDomain(model));
+  }
+
   async save(workspace: Workspace): Promise<void> {
     const exists = await this.exists(workspace.id);
     const persistence = this.toPersistence(workspace);
@@ -70,6 +133,7 @@ export class WorkspaceRepository
         transaction: this.getTransaction(),
       });
 
+      // Delete existing members
       await WorkspaceMemberModel.destroy({
         where: { workspaceId: workspace.id },
         transaction: this.getTransaction(),
@@ -80,6 +144,7 @@ export class WorkspaceRepository
       });
     }
 
+    // Re-create all members
     for (const member of workspace.members) {
       await WorkspaceMemberModel.create(
         {

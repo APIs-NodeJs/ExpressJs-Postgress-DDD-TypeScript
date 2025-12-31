@@ -3,7 +3,7 @@ import { IUseCase } from '../../../../core/application/UseCase';
 import { Result } from '../../../../core/domain/Result';
 import { Workspace } from '../../domain/entities/Workspace';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
-import { StringUtils } from '../../../../shared/utils/StringUtils';
+import { StringUtils } from '../../../../shared/utils/index';
 
 interface CreateWorkspaceRequest {
   name: string;

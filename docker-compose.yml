@@ -45,27 +45,8 @@ services:
       - app-network
     restart: unless-stopped
 
-  # Optional: Redis for caching
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: ddd-backend-redis
-  #   ports:
-  #     - "${REDIS_PORT:-6379}:6379"
-  #   command: redis-server --requirepass ${REDIS_PASSWORD:-redis}
-  #   volumes:
-  #     - redis-data:/data
-  #   healthcheck:
-  #     test: ["CMD", "redis-cli", "ping"]
-  #     interval: 10s
-  #     timeout: 3s
-  #     retries: 5
-  #   networks:
-  #     - app-network
-  #   restart: unless-stopped
-
 volumes:
   postgres-data:
-  # redis-data:
 
 networks:
   app-network:

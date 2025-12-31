@@ -119,7 +119,7 @@ export function Transactional(options: TransactionalOptions = {}) {
           }
 
           // Check if error is retryable
-          if (attempt < retries && this.isRetryableError(lastError)) {
+          if (attempt < retries && descriptor.value.isRetryableError(lastError)) {
             logger.warn('Retrying transaction', {
               attempt: attempt + 1,
               maxRetries: retries,
@@ -128,7 +128,7 @@ export function Transactional(options: TransactionalOptions = {}) {
             });
 
             // Wait before retry
-            await this.delay(retryDelay * (attempt + 1));
+            await descriptor.value.delay(retryDelay);
             continue;
           }
 
