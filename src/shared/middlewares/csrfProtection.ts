@@ -35,7 +35,7 @@ class CsrfProtection {
   /**
    * Verify CSRF token
    */
-  public verifyToken(token: string, secret: string): boolean {
+  private verify(token: string, secret: string): boolean {
     if (!token || !secret) {
       return false;
     }
@@ -71,7 +71,7 @@ class CsrfProtection {
    * Middleware to add CSRF token to response
    */
   public addToken() {
-    return (req: Request, res: Response, next: NextFunction): void => {
+    return (_req: Request, res: Response, next: NextFunction): void => {
       const { token, secret } = this.generateTokenPair();
 
       // Store secret in session/cookie (httpOnly)
@@ -121,7 +121,7 @@ class CsrfProtection {
         );
       }
 
-      if (!this.verifyToken(token, secret)) {
+      if (!this.verify(token, secret)) {
         return ResponseHandler.error(
           res,
           403,

@@ -316,7 +316,7 @@ export class AuthAuditLogger {
   async getRecentSuspiciousActivities(hours: number = 24): Promise<AuditEntry[]> {
     try {
       // Placeholder implementation
-      const cutoff = new Date(Date.now() - hours * 3600000);
+      // const cutoff = new Date(Date.now() - hours * 3600000);
 
       // In production, query from database:
       // const logs = await AuditLogModel.findAll({

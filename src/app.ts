@@ -146,7 +146,7 @@ export class App {
    */
   private setupRoutes(): void {
     // Health check endpoint (no auth required)
-    this.app.get('/health', (req, res) => {
+    this.app.get('/health', (_req, res) => {
       res.status(200).json({
         status: 'healthy',
         timestamp: new Date().toISOString(),

@@ -92,6 +92,12 @@ class AwsSecretsManager implements SecretsProvider {
       // Placeholder implementation
       throw new Error('AWS Secrets Manager integration not implemented');
 
+      // Cache the value
+      this.cache.set(key, {
+        value,
+        expiresAt: Date.now() + this.cacheTTL,
+      });
+
       // Invalidate cache
       this.cache.delete(key);
     } catch (error) {
