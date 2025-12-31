@@ -32,13 +32,18 @@ const addMemberToWorkspaceUseCase = new AddMemberToWorkspaceUseCase(
   userRepository
 );
 
-// Get socket gateways (will be initialized after server starts)
-let notificationService: WorkspaceNotificationService;
+// Create a lazy getter for notification service
+let notificationService: WorkspaceNotificationService | null = null;
 
-// Initialize notification service lazily
 const getNotificationService = (): WorkspaceNotificationService => {
   if (!notificationService) {
     const gateways = getSocketGateways();
+
+    // Check if gateways are initialized
+    if (!gateways || !gateways.workspace || !gateways.notification) {
+      throw new Error('Socket gateways not initialized yet');
+    }
+
     notificationService = new WorkspaceNotificationService(
       gateways.workspace,
       gateways.notification
@@ -46,15 +51,6 @@ const getNotificationService = (): WorkspaceNotificationService => {
   }
   return notificationService;
 };
-
-// Initialize controller with lazy notification service
-const workspaceController = new WorkspaceController(
-  createWorkspaceUseCase,
-  addMemberToWorkspaceUseCase,
-  workspaceRepository,
-  userRepository,
-  getNotificationService() // This will be initialized when first accessed
-);
 
 // Validation schemas
 const CreateWorkspaceSchema = z.object({
@@ -76,24 +72,61 @@ const UpdateWorkspaceSchema = z.object({
 router.use(authenticate);
 
 // Create workspace
-router.post('/', validateRequest({ body: CreateWorkspaceSchema }), (req, res) =>
-  workspaceController.create(req, res)
-);
+router.post('/', validateRequest({ body: CreateWorkspaceSchema }), (req, res) => {
+  // Create controller instance with lazy notification service
+  const workspaceController = new WorkspaceController(
+    createWorkspaceUseCase,
+    addMemberToWorkspaceUseCase,
+    workspaceRepository,
+    userRepository,
+    getNotificationService()
+  );
+
+  return workspaceController.create(req, res);
+});
 
 // Get user's workspaces
-router.get('/my-workspaces', (req, res) => workspaceController.getMyWorkspaces(req, res));
+router.get('/my-workspaces', (req, res) => {
+  const workspaceController = new WorkspaceController(
+    createWorkspaceUseCase,
+    addMemberToWorkspaceUseCase,
+    workspaceRepository,
+    userRepository,
+    getNotificationService()
+  );
+
+  return workspaceController.getMyWorkspaces(req, res);
+});
 
 // Get workspace by ID
-router.get('/:workspaceId', requireWorkspaceAccess(), (req, res) =>
-  workspaceController.getById(req, res)
-);
+router.get('/:workspaceId', requireWorkspaceAccess(), (req, res) => {
+  const workspaceController = new WorkspaceController(
+    createWorkspaceUseCase,
+    addMemberToWorkspaceUseCase,
+    workspaceRepository,
+    userRepository,
+    getNotificationService()
+  );
+
+  return workspaceController.getById(req, res);
+});
 
 // Update workspace
 router.patch(
   '/:workspaceId',
   requireWorkspaceRole(WorkspaceRole.OWNER, WorkspaceRole.ADMIN),
   validateRequest({ body: UpdateWorkspaceSchema }),
-  (req, res) => workspaceController.updateWorkspace(req, res)
+  (req, res) => {
+    const workspaceController = new WorkspaceController(
+      createWorkspaceUseCase,
+      addMemberToWorkspaceUseCase,
+      workspaceRepository,
+      userRepository,
+      getNotificationService()
+    );
+
+    return workspaceController.updateWorkspace(req, res);
+  }
 );
 
 // Add member to workspace
@@ -101,14 +134,34 @@ router.post(
   '/:workspaceId/members',
   requireWorkspaceRole(WorkspaceRole.OWNER, WorkspaceRole.ADMIN),
   validateRequest({ body: AddMemberSchema }),
-  (req, res) => workspaceController.addMember(req, res)
+  (req, res) => {
+    const workspaceController = new WorkspaceController(
+      createWorkspaceUseCase,
+      addMemberToWorkspaceUseCase,
+      workspaceRepository,
+      userRepository,
+      getNotificationService()
+    );
+
+    return workspaceController.addMember(req, res);
+  }
 );
 
 // Remove member from workspace
 router.delete(
   '/:workspaceId/members/:userId',
   requireWorkspaceRole(WorkspaceRole.OWNER, WorkspaceRole.ADMIN),
-  (req, res) => workspaceController.removeMember(req, res)
+  (req, res) => {
+    const workspaceController = new WorkspaceController(
+      createWorkspaceUseCase,
+      addMemberToWorkspaceUseCase,
+      workspaceRepository,
+      userRepository,
+      getNotificationService()
+    );
+
+    return workspaceController.removeMember(req, res);
+  }
 );
 
 export { router as workspaceRouter };
