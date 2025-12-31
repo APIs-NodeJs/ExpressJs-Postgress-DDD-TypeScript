@@ -68,9 +68,6 @@ export class WorkspaceRepository
     return models.map(model => this.toDomain(model));
   }
 
-  /**
-   * NEW: Search workspaces with filters and pagination
-   */
   async search(options: QueryOptions): Promise<PaginatedResult<Workspace>> {
     const query = QueryBuilder.build(options);
 
@@ -101,28 +98,8 @@ export class WorkspaceRepository
   }
 
   /**
-   * NEW: Find active workspaces by owner
+   * UPDATED: Save workspace with transactional outbox pattern
    */
-  async findActiveByOwnerId(ownerId: string): Promise<Workspace[]> {
-    const query = QueryBuilder.build({
-      filters: [
-        { field: 'ownerId', operator: 'eq', value: ownerId },
-        { field: 'isActive', operator: 'eq', value: true },
-      ],
-      sortField: 'createdAt',
-      sortOrder: 'DESC',
-    });
-
-    const models = await WorkspaceModel.findAll({
-      where: query.where,
-      order: query.order,
-      include: [{ model: WorkspaceMemberModel, as: 'members' }],
-      transaction: this.getTransaction(),
-    });
-
-    return models.map(model => this.toDomain(model));
-  }
-
   async save(workspace: Workspace): Promise<void> {
     const exists = await this.exists(workspace.id);
     const persistence = this.toPersistence(workspace);
@@ -159,6 +136,11 @@ export class WorkspaceRepository
         } as any,
         { transaction: this.getTransaction() }
       );
+    }
+
+    // Save events to outbox if there are any
+    if (workspace.domainEvents.length > 0) {
+      await this.saveWithEvents(workspace, 'Workspace');
     }
   }
 

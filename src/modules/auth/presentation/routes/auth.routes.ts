@@ -1,4 +1,4 @@
-// src/modules/auth/presentation/routes/auth.routes.ts
+// src/modules/auth/presentation/routes/auth.routes.ts (UPDATED)
 import { Router } from 'express';
 import { AuthController } from '../controllers/AuthController';
 import { validateRequest } from '../../../../shared/middlewares/validateRequest';
@@ -16,6 +16,10 @@ import { RegisterUserUseCase } from '../../application/useCases/RegisterUserUseC
 import { LoginUserUseCase } from '../../application/useCases/LoginUserUseCase';
 import { GoogleAuthUseCase } from '../../application/useCases/GoogleAuthUseCase';
 import { RefreshTokenUseCase } from '../../application/useCases/RefreshTokenUseCase';
+import {
+  loginLimiter,
+  registrationLimiter,
+} from '../../../../shared/middlewares/securityRateLimiters';
 
 const router = Router();
 
@@ -41,14 +45,23 @@ const authController = new AuthController(
   refreshTokenUseCase
 );
 
-router.post('/register', validateRequest({ body: RegisterRequestSchema }), (req, res) =>
-  authController.register(req, res)
+// Apply strict rate limiting to registration
+router.post(
+  '/register',
+  registrationLimiter,
+  validateRequest({ body: RegisterRequestSchema }),
+  (req, res) => authController.register(req, res)
 );
 
-router.post('/login', validateRequest({ body: LoginRequestSchema }), (req, res) =>
-  authController.login(req, res)
+// Apply strict rate limiting to login
+router.post(
+  '/login',
+  loginLimiter,
+  validateRequest({ body: LoginRequestSchema }),
+  (req, res) => authController.login(req, res)
 );
 
+// Google OAuth routes (less strict as Google handles rate limiting)
 router.get('/google', (req, res) => authController.googleAuthUrl(req, res));
 
 router.post(
@@ -57,12 +70,14 @@ router.post(
   (req, res) => authController.googleAuthCallback(req, res)
 );
 
+// Token refresh (moderate rate limiting)
 router.post(
   '/refresh',
   validateRequest({ body: RefreshTokenRequestSchema }),
   (req, res) => authController.refreshToken(req, res)
 );
 
+// Logout (no rate limiting needed)
 router.post('/logout', (req, res) => authController.logout(req, res));
 
 export { router as authRouter };

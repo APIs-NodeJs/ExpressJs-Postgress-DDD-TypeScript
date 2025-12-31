@@ -8,7 +8,7 @@ import { config } from './shared/config/env.config';
 import { errorHandler } from './shared/middlewares/errorHandler';
 import { requestLogger } from './shared/middlewares/requestLogger';
 import { createRateLimiter } from './shared/middlewares/rateLimiter';
-import { addCsrfToken } from './shared/middlewares/csrfProtection';
+import { addCsrfToken, verifyCsrfToken } from './shared/middlewares/csrfProtection';
 import { apiRouter } from './api/v1';
 
 export class App {
@@ -43,6 +43,10 @@ export class App {
           includeSubDomains: true,
           preload: true,
         },
+        frameguard: { action: 'deny' },
+        noSniff: true,
+        referrerPolicy: { policy: 'no-referrer' },
+        permittedCrossDomainPolicies: { permittedPolicies: 'none' },
       })
     );
 
@@ -154,6 +158,21 @@ export class App {
       });
     });
 
+    // CSRF verification for state-changing operations
+    if (config.NODE_ENV === 'production') {
+      // Apply CSRF protection to all POST, PUT, PATCH, DELETE requests
+      this.app.use('/api/v1', (req, res, next) => {
+        const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+
+        if (safeMethods.includes(req.method)) {
+          return next();
+        }
+
+        // Apply CSRF verification
+        return verifyCsrfToken(req, res, next);
+      });
+    }
+
     // API routes
     this.app.use('/api/v1', apiRouter);
 
@@ -183,16 +202,6 @@ export class App {
    */
   public async shutdown(): Promise<void> {
     console.log('Starting graceful shutdown...');
-
-    // Close cache connections
-    // await cacheService.disconnect?.();
-
     console.log('Graceful shutdown completed');
   }
 }
-
-// Note: To fully integrate CSRF protection for state-changing operations,
-// uncomment the following line in your routes:
-// router.post('*', verifyCsrfToken);
-// router.put('*', verifyCsrfToken);
-// router.delete('*', verifyCsrfToken);
