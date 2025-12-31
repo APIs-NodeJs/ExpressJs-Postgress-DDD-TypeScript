@@ -4,13 +4,21 @@ import { ResponseHandler } from '../../../../shared/responses/ResponseHandler';
 import { CreateWorkspaceUseCase } from '../../application/useCases/CreateWorkspaceUseCase';
 import { AddMemberToWorkspaceUseCase } from '../../application/useCases/AddMemberToWorkspaceUseCase';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
+import { IUserRepository } from '../../../users/domain/repositories/IUserRepository';
 import { eventBus } from '../../../../core/application/EventBus';
+import { IWorkspaceNotificationService } from '../../application/services/WorkspaceNotificationService';
 
+/**
+ * Clean WorkspaceController following DDD principles
+ * No direct infrastructure dependencies
+ */
 export class WorkspaceController {
   constructor(
     private createWorkspaceUseCase: CreateWorkspaceUseCase,
     private addMemberToWorkspaceUseCase: AddMemberToWorkspaceUseCase,
-    private workspaceRepository: IWorkspaceRepository
+    private workspaceRepository: IWorkspaceRepository,
+    private userRepository: IUserRepository,
+    private notificationService: IWorkspaceNotificationService // Injected dependency
   ) {}
 
   async create(req: Request, res: Response): Promise<void> {
@@ -41,7 +49,7 @@ export class WorkspaceController {
 
     const data = result.getValue();
 
-    // Publish domain events (will trigger Socket.IO notifications)
+    // Publish domain events
     const workspace = await this.workspaceRepository.findById(data.workspace.id);
     if (workspace) {
       await eventBus.publishAll(workspace.domainEvents);
@@ -126,6 +134,11 @@ export class WorkspaceController {
     const requestId = req.id;
     const { workspaceId } = req.params;
 
+    if (!req.user) {
+      ResponseHandler.unauthorized(res, 'Authentication required', requestId);
+      return;
+    }
+
     const result = await this.addMemberToWorkspaceUseCase.execute({
       workspaceId,
       userId: req.body.userId,
@@ -144,7 +157,7 @@ export class WorkspaceController {
       return;
     }
 
-    // Publish domain events (will trigger Socket.IO notifications)
+    // Publish domain events (will trigger notifications via event handlers)
     const workspace = await this.workspaceRepository.findById(workspaceId);
     if (workspace) {
       await eventBus.publishAll(workspace.domainEvents);
@@ -163,6 +176,11 @@ export class WorkspaceController {
     const requestId = req.id;
     const { workspaceId, userId } = req.params;
 
+    if (!req.user) {
+      ResponseHandler.unauthorized(res, 'Authentication required', requestId);
+      return;
+    }
+
     const workspace = await this.workspaceRepository.findById(workspaceId);
 
     if (!workspace) {
@@ -170,7 +188,10 @@ export class WorkspaceController {
       return;
     }
 
+    // Get member details before removal
     const member = workspace.getMember(userId);
+    const user = member ? await this.userRepository.findById(userId) : null;
+
     const removeResult = workspace.removeMember(userId);
 
     if (removeResult.isFailure) {
@@ -187,24 +208,93 @@ export class WorkspaceController {
 
     await this.workspaceRepository.save(workspace);
 
-    // Get socket gateways and notify
-    const { getSocketGateways } =
-      await import('../../../../shared/infrastructure/socket/setupGateways');
-    const gateways = getSocketGateways();
-
-    if (gateways && member) {
-      // Notify via Socket.IO
-      const user = member.userId;
-      gateways.workspace.notifyMemberRemoved(workspaceId, {
-        userId: user,
-        email: req.user?.email || '',
-      });
+    // Use notification service instead of direct gateway access
+    if (member && user) {
+      await this.notificationService.notifyMemberRemoved(
+        {
+          id: workspace.id,
+          name: workspace.name,
+          ownerId: workspace.ownerId,
+        },
+        {
+          memberId: member.id,
+          userId: user.id,
+          email: user.email.value,
+          role: member.role,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
+        req.user.userId
+      );
     }
 
     ResponseHandler.ok(
       res,
       { message: 'Member removed successfully' },
       'Member removed successfully',
+      requestId
+    );
+  }
+
+  async updateWorkspace(req: Request, res: Response): Promise<void> {
+    const requestId = req.id;
+    const { workspaceId } = req.params;
+
+    if (!req.user) {
+      ResponseHandler.unauthorized(res, 'Authentication required', requestId);
+      return;
+    }
+
+    const workspace = await this.workspaceRepository.findById(workspaceId);
+
+    if (!workspace) {
+      ResponseHandler.notFound(res, 'Workspace', requestId);
+      return;
+    }
+
+    const changes: Record<string, any> = {};
+
+    // Update name if provided
+    if (req.body.name && req.body.name !== workspace.name) {
+      const updateResult = workspace.updateName(req.body.name);
+      if (updateResult.isFailure) {
+        ResponseHandler.error(
+          res,
+          400,
+          'UPDATE_FAILED',
+          updateResult.getErrorValue(),
+          undefined,
+          requestId
+        );
+        return;
+      }
+      changes.name = req.body.name;
+    }
+
+    await this.workspaceRepository.save(workspace);
+
+    // Notify members of the update
+    if (Object.keys(changes).length > 0) {
+      await this.notificationService.notifyWorkspaceUpdated(
+        {
+          id: workspace.id,
+          name: workspace.name,
+          ownerId: workspace.ownerId,
+        },
+        changes,
+        req.user.userId
+      );
+    }
+
+    ResponseHandler.ok(
+      res,
+      {
+        id: workspace.id,
+        name: workspace.name,
+        slug: workspace.slug,
+        updatedAt: workspace.updatedAt,
+      },
+      'Workspace updated successfully',
       requestId
     );
   }
