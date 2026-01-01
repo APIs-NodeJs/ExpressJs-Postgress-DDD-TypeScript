@@ -16,9 +16,9 @@ export class AppError extends Error {
     details?: unknown
   ) {
     super(message);
-    
+
     Object.setPrototypeOf(this, new.target.prototype);
-    
+
     this.name = this.constructor.name;
     this.statusCode = statusCode;
     this.isOperational = isOperational;
@@ -32,14 +32,25 @@ export class AppError extends Error {
    * Convert error to JSON for API responses
    */
   toJSON() {
-    return {
+    const result: Record<string, any> = {
       name: this.name,
       message: this.message,
       statusCode: this.statusCode,
-      ...(this.code && { code: this.code }),
-      ...(this.details && { details: this.details }),
-      ...(process.env.NODE_ENV === 'development' && { stack: this.stack })
     };
+
+    if (this.code) {
+      result.code = this.code;
+    }
+
+    if (this.details !== undefined) {
+      result.details = this.details;
+    }
+
+    if (process.env.NODE_ENV === 'development' && this.stack) {
+      result.stack = this.stack;
+    }
+
+    return result;
   }
 }
 
@@ -79,9 +90,7 @@ export class ForbiddenError extends AppError {
  */
 export class NotFoundError extends AppError {
   constructor(resource: string = 'Resource', id?: string | number) {
-    const message = id
-      ? `${resource} with id '${id}' not found`
-      : `${resource} not found`;
+    const message = id ? `${resource} with id '${id}' not found` : `${resource} not found`;
     super(message, 404, true, 'NOT_FOUND');
   }
 }
