@@ -1,9 +1,14 @@
 // src/core/infrastructure/persistence/BaseRepository.ts
 import { IRepository } from '../../application/ports/IRepository';
 import { SequelizeUnitOfWork } from './SequelizeUnitOfWork';
-import { AggregateRoot } from '../../domain/AggregateRoot';
-import { transactionalEventBus } from '../outbox/TransactionalEventBus';
 
+/**
+ * Base repository implementation for Sequelize
+ *
+ * @template TEntity - Domain entity type
+ * @template TModel - Sequelize model type
+ * @template TId - Entity identifier type (default: string)
+ */
 export abstract class BaseRepository<
   TEntity,
   TModel,
@@ -11,44 +16,20 @@ export abstract class BaseRepository<
 > implements IRepository<TEntity, TId> {
   constructor(protected readonly unitOfWork: SequelizeUnitOfWork) {}
 
+  /**
+   * Get the current transaction if active, otherwise undefined
+   */
   protected getTransaction() {
     return this.unitOfWork.isActive() ? this.unitOfWork.getTransaction() : undefined;
   }
 
-  /**
-   * Save aggregate and its events to outbox in same transaction
-   */
-  protected async saveWithEvents(
-    aggregate: AggregateRoot<TId>,
-    aggregateType: string
-  ): Promise<void> {
-    const transaction = this.getTransaction();
-
-    if (!transaction) {
-      throw new Error('Cannot save with events outside of transaction');
-    }
-
-    // 1. Save the aggregate
-    await this.save(aggregate);
-
-    // 2. Save events to outbox (same transaction)
-    if (aggregate.domainEvents.length > 0) {
-      await transactionalEventBus.saveToOutbox(
-        aggregate.domainEvents,
-        aggregateType,
-        transaction
-      );
-
-      // 3. Clear events after saving to outbox
-      aggregate.clearEvents();
-    }
-  }
-
+  // Abstract methods that must be implemented by derived classes
   abstract findById(id: TId): Promise<TEntity | null>;
   abstract save(entity: TEntity): Promise<void>;
   abstract delete(id: TId): Promise<void>;
   abstract exists(id: TId): Promise<boolean>;
 
+  // Mapping methods
   protected abstract toDomain(model: TModel): TEntity;
   protected abstract toPersistence(entity: TEntity): Partial<TModel>;
 }

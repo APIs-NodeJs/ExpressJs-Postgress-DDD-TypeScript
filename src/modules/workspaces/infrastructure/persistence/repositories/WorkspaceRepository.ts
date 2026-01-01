@@ -98,7 +98,7 @@ export class WorkspaceRepository
   }
 
   /**
-   * UPDATED: Save workspace with transactional outbox pattern
+   * Save workspace with transactional outbox pattern
    */
   async save(workspace: Workspace): Promise<void> {
     const exists = await this.exists(workspace.id);
@@ -140,7 +140,17 @@ export class WorkspaceRepository
 
     // Save events to outbox if there are any
     if (workspace.domainEvents.length > 0) {
-      await this.saveWithEvents(workspace, 'Workspace');
+      const transaction = this.getTransaction();
+      if (transaction) {
+        const { transactionalEventBus } =
+          await import('../../../../../core/infrastructure/outbox/TransactionalEventBus');
+        await transactionalEventBus.saveToOutbox(
+          workspace.domainEvents,
+          'Workspace',
+          transaction
+        );
+        workspace.clearEvents();
+      }
     }
   }
 

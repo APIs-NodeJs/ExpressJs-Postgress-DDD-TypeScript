@@ -20,14 +20,18 @@ if (!ConfigValidator.isValidDuration(config.JWT_REFRESH_EXPIRES_IN)) {
 }
 
 const ACCESS_TOKEN_OPTIONS: SignOptions = {
-  expiresIn: config.JWT_EXPIRES_IN, // Now guaranteed to be valid
+  expiresIn:
+    (config.JWT_EXPIRES_IN && parseInt(config.JWT_EXPIRES_IN, 10)) ||
+    (undefined as number | undefined),
   issuer: 'ddd-core-api',
   audience: 'ddd-core-client',
   algorithm: 'HS256',
 };
 
 const REFRESH_TOKEN_OPTIONS: SignOptions = {
-  expiresIn: config.JWT_REFRESH_EXPIRES_IN, // Now guaranteed to be valid
+  expiresIn:
+    (config.JWT_REFRESH_EXPIRES_IN && parseInt(config.JWT_REFRESH_EXPIRES_IN, 10)) ||
+    (undefined as number | undefined),
   issuer: 'ddd-core-api',
   audience: 'ddd-core-client',
   algorithm: 'HS256',
