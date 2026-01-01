@@ -1,10 +1,10 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { createApp } from '@core/bootstrap/app';
-import { connectDatabase } from '@core/config/database';
-import { redis } from '@core/config/redis';
-import { logger, logStartup, logServerListening } from '@core/config/logger';
+import { createApp } from './core/bootstrap/app';
+import { connectDatabase } from './core/config/database';
+import { redis } from './core/config/redis';
+import { logger, logStartup, logServerListening } from './core/config/logger';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
@@ -22,8 +22,17 @@ const startServer = async (): Promise<void> => {
     const app = createApp();
 
     // Start server
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       logServerListening(PORT);
+    });
+
+    // Keep process alive
+    process.on('SIGINT', () => {
+      logger.info('SIGINT signal received: closing server');
+      server.close(() => {
+        logger.info('Server closed');
+        process.exit(0);
+      });
     });
   } catch (error) {
     logger.error('Failed to start server:', error);
