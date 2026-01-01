@@ -50,7 +50,7 @@ export const errorHandler = (
     details = (err as any).errors?.map((e: any) => ({
       field: e.path,
       message: e.message,
-      value: e.value
+      value: e.value,
     }));
     isOperational = true;
   }
@@ -62,7 +62,7 @@ export const errorHandler = (
     code = 'DUPLICATE_ENTRY';
     details = (err as any).errors?.map((e: any) => ({
       field: e.path,
-      value: e.value
+      value: e.value,
     }));
     isOperational = true;
   }
@@ -98,7 +98,7 @@ export const errorHandler = (
     details = (err as any).details?.map((d: any) => ({
       field: d.path.join('.'),
       message: d.message,
-      type: d.type
+      type: d.type,
     }));
     isOperational = true;
   }
@@ -117,7 +117,7 @@ export const errorHandler = (
     message,
     timestamp: new Date().toISOString(),
     path: req.path,
-    method: req.method
+    method: req.method,
   };
 
   if (code) {
@@ -141,7 +141,7 @@ export const errorHandler = (
         message: err.message,
         stack: err.stack,
         code,
-        details
+        details,
       },
       request: {
         method: req.method,
@@ -151,21 +151,21 @@ export const errorHandler = (
         query: req.query,
         params: req.params,
         ip: req.ip,
-        userId: (req as any).user?.id
-      }
+        userId: (req as any).user?.id,
+      },
     });
   } else {
     logger.warn('Operational error occurred:', {
       error: {
         name: err.name,
         message: err.message,
-        code
+        code,
       },
       request: {
         method: req.method,
         url: req.url,
-        ip: req.ip
-      }
+        ip: req.ip,
+      },
     });
   }
 
@@ -183,13 +183,13 @@ export const notFoundHandler = (req: Request, res: Response): void => {
     code: 'ROUTE_NOT_FOUND',
     timestamp: new Date().toISOString(),
     path: req.path,
-    method: req.method
+    method: req.method,
   };
 
   logger.warn('Route not found:', {
     method: req.method,
     url: req.url,
-    ip: req.ip
+    ip: req.ip,
   });
 
   res.status(404).json(errorResponse);

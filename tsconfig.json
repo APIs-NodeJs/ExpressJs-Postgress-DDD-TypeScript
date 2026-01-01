@@ -29,6 +29,7 @@
       "@modules/*": ["modules/*"],
       "@shared/*": ["shared/*"]
     },
+    "typeRoots": ["./node_modules/@types", "./src/types"],
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "sourceMap": true,
