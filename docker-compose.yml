@@ -1,118 +1,75 @@
-version: "3.8"
+version: '3.9'
 
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: myapp_postgres
-    restart: unless-stopped
+    container_name: enterprise_postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: myapp_dev
-      POSTGRES_INITDB_ARGS: "-E UTF8"
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-enterprise_db}
     ports:
-      - "5432:5432"
+      - '${DB_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
-    networks:
-      - myapp_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - enterprise_network
 
   redis:
     image: redis:7-alpine
-    container_name: myapp_redis
-    restart: unless-stopped
-    command: redis-server --appendonly yes
+    container_name: enterprise_redis
     ports:
-      - "6379:6379"
+      - '${REDIS_PORT:-6379}:6379'
     volumes:
       - redis_data:/data
-    networks:
-      - myapp_network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 3s
       retries: 5
+    networks:
+      - enterprise_network
 
   api:
     build:
       context: .
       dockerfile: Dockerfile
-      target: development
-    container_name: myapp_api
-    restart: unless-stopped
+    container_name: enterprise_api
     environment:
-      NODE_ENV: development
-      PORT: 3000
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${PORT:-3000}
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: myapp_dev
-      DB_USER: postgres
-      DB_PASSWORD: postgres
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-enterprise_db}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
     ports:
-      - "3000:3000"
-      - "3001:3001"
-    volumes:
-      - .:/app
-      - /app/node_modules
-      - /app/dist
+      - '${PORT:-3000}:3000'
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - myapp_network
-    command: npm run dev
-
-  # Optional: PgAdmin for database management
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: myapp_pgadmin
-    restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-      PGADMIN_CONFIG_SERVER_MODE: "False"
-    ports:
-      - "5050:80"
     volumes:
-      - pgadmin_data:/var/lib/pgadmin
+      - ./src:/app/src
+      - /app/node_modules
     networks:
-      - myapp_network
-    depends_on:
-      - postgres
-
-  # Optional: Redis Commander for Redis management
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: myapp_redis_commander
-    restart: unless-stopped
-    environment:
-      REDIS_HOSTS: local:redis:6379
-    ports:
-      - "8081:8081"
-    networks:
-      - myapp_network
-    depends_on:
-      - redis
+      - enterprise_network
+    command: npm run dev
 
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
-  pgadmin_data:
-    driver: local
 
 networks:
-  myapp_network:
+  enterprise_network:
     driver: bridge
