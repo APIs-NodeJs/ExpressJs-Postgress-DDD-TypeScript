@@ -32,8 +32,11 @@ const colors = {
 
 class Server {
   private app: Application;
+
   private httpServer: http.Server | null = null;
+
   private isShuttingDown = false;
+
   private startTime: number = Date.now();
 
   constructor() {
