@@ -1,6 +1,5 @@
 // src/modules/auth/application/use-cases/login.use-case.ts
 
-import { User } from '../../domain/entities/user.entity';
 import { Session } from '../../domain/entities/session.entity';
 import { Email } from '../../domain/value-objects/email.value-object';
 import { RefreshToken } from '../../domain/value-objects/refresh-token.value-object';
@@ -10,25 +9,8 @@ import { InvalidCredentialsError, ForbiddenError } from '@core/errors';
 import { PasswordUtil, JwtUtil, DateUtil } from '@core/utils';
 import { config } from '@core/config';
 import { UserLoggedInEvent } from '../../domain/events/user-logged-in.event';
-
-export interface LoginUseCaseInput {
-  email: string;
-  password: string;
-  ipAddress?: string;
-  userAgent?: string;
-}
-
-export interface LoginUseCaseOutput {
-  accessToken: string;
-  refreshToken: string;
-  user: {
-    id: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    status: string;
-  };
-}
+import { LoginRequestDto, LoginResponseDto } from '../dtos';
+import { UserMapper } from '../mappers';
 
 export class LoginUseCase {
   constructor(
@@ -36,9 +18,9 @@ export class LoginUseCase {
     private readonly sessionRepository: ISessionRepository
   ) {}
 
-  async execute(input: LoginUseCaseInput): Promise<LoginUseCaseOutput> {
+  async execute(dto: LoginRequestDto): Promise<LoginResponseDto> {
     // Find user by email
-    const email = Email.create(input.email);
+    const email = Email.create(dto.email);
     const user = await this.userRepository.findByEmail(email);
 
     if (!user) {
@@ -46,7 +28,7 @@ export class LoginUseCase {
     }
 
     // Verify password
-    const passwordValid = await PasswordUtil.compare(input.password, user.getPasswordHash());
+    const passwordValid = await PasswordUtil.compare(dto.password, user.getPasswordHash());
 
     if (!passwordValid) {
       throw new InvalidCredentialsError('Invalid email or password');
@@ -68,7 +50,7 @@ export class LoginUseCase {
     const refreshTokenVO = RefreshToken.create(expiresAt);
 
     // Create session
-    const session = Session.create(user.getId(), refreshTokenVO, input.ipAddress, input.userAgent);
+    const session = Session.create(user.getId(), refreshTokenVO, dto.ipAddress, dto.userAgent);
     await this.sessionRepository.save(session);
 
     // Generate JWT tokens
@@ -85,28 +67,23 @@ export class LoginUseCase {
     const event = new UserLoggedInEvent({
       userId: user.getId(),
       email: user.getEmail().getValue(),
-      ipAddress: input.ipAddress,
-      userAgent: input.userAgent,
+      ipAddress: dto.ipAddress,
+      userAgent: dto.userAgent,
       loggedInAt: new Date(),
     });
 
+    // Return DTO
     return {
       accessToken,
       refreshToken: refreshTokenVO.getValue(),
-      user: {
-        id: user.getId(),
-        email: user.getEmail().getValue(),
-        firstName: user.getFirstName(),
-        lastName: user.getLastName(),
-        status: user.getStatus(),
-      },
+      user: UserMapper.toMinimalDto(user),
     };
   }
 
   private parseExpiration(expiration: string): Date {
     const match = expiration.match(/^(\d+)([dhms])$/);
     if (!match) {
-      return DateUtil.addDays(new Date(), 7); // Default 7 days
+      return DateUtil.addDays(new Date(), 7);
     }
 
     const value = parseInt(match[1], 10);

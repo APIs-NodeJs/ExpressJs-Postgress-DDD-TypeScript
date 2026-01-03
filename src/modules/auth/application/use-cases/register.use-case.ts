@@ -7,29 +7,15 @@ import { IUserRepository } from '../../domain/repositories/user.repository.inter
 import { ConflictError } from '@core/errors';
 import { PasswordUtil } from '@core/utils';
 import { UserRegisteredEvent } from '../../domain/events/user-registered.event';
-
-export interface RegisterUseCaseInput {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-}
-
-export interface RegisterUseCaseOutput {
-  userId: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  status: UserStatus;
-}
+import { RegisterRequestDto, RegisterResponseDto } from '../dtos';
 
 export class RegisterUseCase {
   constructor(private readonly userRepository: IUserRepository) {}
 
-  async execute(input: RegisterUseCaseInput): Promise<RegisterUseCaseOutput> {
+  async execute(dto: RegisterRequestDto): Promise<RegisterResponseDto> {
     // Validate and create value objects
-    const email = Email.create(input.email);
-    const password = Password.create(input.password);
+    const email = Email.create(dto.email);
+    const password = Password.create(dto.password);
 
     // Check if user already exists
     const existingUser = await this.userRepository.findByEmail(email);
@@ -44,8 +30,8 @@ export class RegisterUseCase {
     const user = User.create({
       email,
       passwordHash,
-      firstName: input.firstName.trim(),
-      lastName: input.lastName.trim(),
+      firstName: dto.firstName.trim(),
+      lastName: dto.lastName.trim(),
       status: UserStatus.PENDING_VERIFICATION,
       emailVerified: false,
     });
@@ -62,6 +48,7 @@ export class RegisterUseCase {
       registeredAt: savedUser.getCreatedAt(),
     });
 
+    // Return DTO
     return {
       userId: savedUser.getId(),
       email: savedUser.getEmail().getValue(),

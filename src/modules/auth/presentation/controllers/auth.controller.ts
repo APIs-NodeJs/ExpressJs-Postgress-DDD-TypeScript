@@ -8,6 +8,13 @@ import { LoginUseCase } from '../../application/use-cases/login.use-case';
 import { RefreshTokenUseCase } from '../../application/use-cases/refresh-token.use-case';
 import { LogoutUseCase } from '../../application/use-cases/logout.use-case';
 import { GetCurrentUserUseCase } from '../../application/use-cases/get-current-user.use-case';
+import {
+  RegisterRequestDto,
+  LoginRequestDto,
+  RefreshTokenRequestDto,
+  LogoutRequestDto,
+  GetCurrentUserRequestDto,
+} from '../../application/dtos';
 
 const logger = new Logger('AuthController');
 
@@ -22,19 +29,20 @@ export class AuthController {
 
   register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { email, password, firstName, lastName } = req.body;
-
       logger.info('User registration attempt', {
-        email,
+        email: req.body.email,
         correlationId: req.correlationId,
       });
 
-      const result = await this.registerUseCase.execute({
-        email,
-        password,
-        firstName,
-        lastName,
-      });
+      // Build DTO from request
+      const dto: RegisterRequestDto = {
+        email: req.body.email,
+        password: req.body.password,
+        firstName: req.body.firstName,
+        lastName: req.body.lastName,
+      };
+
+      const result = await this.registerUseCase.execute(dto);
 
       logger.info('User registered successfully', {
         userId: result.userId,
@@ -58,20 +66,21 @@ export class AuthController {
 
   login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { email, password } = req.body;
-
       logger.info('User login attempt', {
-        email,
+        email: req.body.email,
         ipAddress: req.ip,
         correlationId: req.correlationId,
       });
 
-      const result = await this.loginUseCase.execute({
-        email,
-        password,
+      // Build DTO from request
+      const dto: LoginRequestDto = {
+        email: req.body.email,
+        password: req.body.password,
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
-      });
+      };
+
+      const result = await this.loginUseCase.execute(dto);
 
       logger.info('User logged in successfully', {
         userId: result.user.id,
@@ -91,15 +100,16 @@ export class AuthController {
 
   refreshToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { refreshToken } = req.body;
-
       logger.info('Token refresh attempt', {
         correlationId: req.correlationId,
       });
 
-      const result = await this.refreshTokenUseCase.execute({
-        refreshToken,
-      });
+      // Build DTO from request
+      const dto: RefreshTokenRequestDto = {
+        refreshToken: req.body.refreshToken,
+      };
+
+      const result = await this.refreshTokenUseCase.execute(dto);
 
       logger.info('Token refreshed successfully', {
         correlationId: req.correlationId,
@@ -117,16 +127,17 @@ export class AuthController {
 
   logout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { refreshToken } = req.body;
-
       logger.info('User logout attempt', {
         userId: req.user?.userId,
         correlationId: req.correlationId,
       });
 
-      await this.logoutUseCase.execute({
-        refreshToken,
-      });
+      // Build DTO from request
+      const dto: LogoutRequestDto = {
+        refreshToken: req.body.refreshToken,
+      };
+
+      await this.logoutUseCase.execute(dto);
 
       logger.info('User logged out successfully', {
         userId: req.user?.userId,
@@ -154,9 +165,12 @@ export class AuthController {
         correlationId: req.correlationId,
       });
 
-      const result = await this.getCurrentUserUseCase.execute({
+      // Build DTO from request
+      const dto: GetCurrentUserRequestDto = {
         userId: req.user.userId,
-      });
+      };
+
+      const result = await this.getCurrentUserUseCase.execute(dto);
 
       ApiResponseUtil.success(res, result);
     } catch (error) {
