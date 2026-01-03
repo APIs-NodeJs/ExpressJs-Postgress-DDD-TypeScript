@@ -1,3 +1,5 @@
+// src/core/bootstrap/app.ts (UPDATE registerRoutes function)
+
 import express, { Application, Router } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -7,19 +9,16 @@ import { errorHandler, notFoundHandler } from '@core/middleware/error.middleware
 import { requestLogger } from '@core/middleware/request-logger.middleware';
 import { correlationId } from '@core/middleware/correlation-id.middleware';
 import { Logger } from '@core/infrastructure/logger';
+import { AuthContainer } from '@modules/auth/auth.container';
 
 const logger = new Logger('App');
 
 export function createApp(): Application {
   const app = express();
 
-  // Trust proxy for rate limiting behind reverse proxy
   app.set('trust proxy', 1);
-
-  // Correlation ID (must be first)
   app.use(correlationId);
 
-  // Security headers
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -41,13 +40,11 @@ export function createApp(): Application {
     })
   );
 
-  // CORS configuration
   const corsOrigins = config.CORS_ORIGIN.split(',').map((origin) => origin.trim());
 
   app.use(
     cors({
       origin: (origin, callback) => {
-        // Allow requests with no origin (mobile apps, Postman, etc.)
         if (!origin || corsOrigins.includes(origin) || corsOrigins.includes('*')) {
           callback(null, true);
         } else {
@@ -59,21 +56,15 @@ export function createApp(): Application {
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID'],
       exposedHeaders: ['X-Correlation-ID'],
-      maxAge: 86400, // 24 hours
+      maxAge: 86400,
     })
   );
 
-  // Body parsers
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-  // Request logging (before rate limiting to log all requests)
   app.use(requestLogger);
-
-  // Rate limiting
   app.use(rateLimiter);
 
-  // Health check endpoint (before authentication)
   app.get('/health', (req, res) => {
     res.status(200).json({
       success: true,
@@ -84,7 +75,6 @@ export function createApp(): Application {
     });
   });
 
-  // Readiness check (checks dependencies)
   app.get('/ready', async (req, res) => {
     try {
       const { Database } = await import('@core/infrastructure/database');
@@ -145,12 +135,17 @@ export function registerRoutes(app: Application): void {
     });
   });
 
-  // Module routes will be registered here
-  // This will be populated when modules are implemented
+  // Initialize Auth Module
+  AuthContainer.initialize();
+
+  // Register module routes
+  apiRouter.use('/auth', AuthContainer.getAuthRoutes());
 
   app.use(`/api/${config.API_VERSION}`, apiRouter);
 
-  logger.info('Routes registered successfully');
+  logger.info('Routes registered successfully', {
+    modules: ['auth'],
+  });
 }
 
 export function getApiRouter(): Router {

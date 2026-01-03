@@ -1,6 +1,9 @@
+// src/core/infrastructure/database.ts (UPDATE)
+
 import { Sequelize, SequelizeOptions } from 'sequelize-typescript';
 import { config } from '@core/config';
 import { Logger } from './logger';
+import path from 'path';
 
 const logger = new Logger('Database');
 
@@ -29,7 +32,7 @@ export class Database {
           timestamps: true,
           underscored: true,
           freezeTableName: true,
-          paranoid: true, // Enable soft deletes globally
+          paranoid: true,
         },
         dialectOptions: {
           ssl:
@@ -55,8 +58,11 @@ export class Database {
 
       Database.instance = new Sequelize(sequelizeConfig);
 
-      // Register models directory (will be populated when modules are added)
-      // Database.instance.addModels([__dirname + '/../../modules/**/infrastructure/models']);
+      // Register models
+      Database.instance.addModels([
+        path.join(__dirname, '../../modules/auth/infrastructure/models/*.model.ts'),
+        path.join(__dirname, '../../modules/auth/infrastructure/models/*.model.js'),
+      ]);
     }
 
     return Database.instance;
@@ -77,7 +83,7 @@ export class Database {
         database: config.DB_NAME,
       });
 
-      // Sync models only in development (not recommended for production)
+      // Sync models only in development
       if (config.NODE_ENV === 'development') {
         await sequelize.sync({ alter: false });
         logger.info('Database models synchronized');
