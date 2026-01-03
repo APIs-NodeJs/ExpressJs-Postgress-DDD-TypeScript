@@ -1,9 +1,10 @@
-// src/core/infrastructure/database.ts (UPDATE)
+// src/core/infrastructure/database.ts
 
 import { Sequelize, SequelizeOptions } from 'sequelize-typescript';
 import { config } from '@core/config';
 import { Logger } from './logger';
-import path from 'path';
+import { UserModel } from '@modules/auth/infrastructure/models/user.model';
+import { SessionModel } from '@modules/auth/infrastructure/models/session.model';
 
 const logger = new Logger('Database');
 
@@ -20,6 +21,7 @@ export class Database {
         username: config.DB_USER,
         password: config.DB_PASSWORD,
         database: config.DB_NAME,
+        models: [UserModel, SessionModel],
         pool: {
           max: config.DB_POOL_MAX,
           min: config.DB_POOL_MIN,
@@ -57,12 +59,6 @@ export class Database {
       };
 
       Database.instance = new Sequelize(sequelizeConfig);
-
-      // Register models
-      Database.instance.addModels([
-        path.join(__dirname, '../../modules/auth/infrastructure/models/*.model.ts'),
-        path.join(__dirname, '../../modules/auth/infrastructure/models/*.model.js'),
-      ]);
     }
 
     return Database.instance;
