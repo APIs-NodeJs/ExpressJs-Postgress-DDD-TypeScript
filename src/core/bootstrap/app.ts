@@ -10,6 +10,7 @@ import { requestLogger } from '@core/middleware/request-logger.middleware';
 import { correlationId } from '@core/middleware/correlation-id.middleware';
 import { Logger } from '@core/infrastructure/logger';
 import { AuthContainer } from '@modules/auth/auth.container';
+import { UserContainer } from '@modules/user/user.container';
 
 const logger = new Logger('App');
 
@@ -140,6 +141,7 @@ export function registerRoutes(app: Application): void {
 
   // Register module routes
   apiRouter.use('/auth', AuthContainer.getAuthRoutes());
+  apiRouter.use('/users', UserContainer.getUserRoutes());
 
   app.use(`/api/${config.API_VERSION}`, apiRouter);
 
