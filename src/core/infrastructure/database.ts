@@ -5,6 +5,9 @@ import { config } from '@core/config';
 import { Logger } from './logger';
 import { UserModel } from '@modules/auth/infrastructure/models/user.model';
 import { SessionModel } from '@modules/auth/infrastructure/models/session.model';
+import { WorkspaceModel } from '@modules/workspace/infrastructure/models/workspace.model';
+import { WorkspaceMemberModel } from '@modules/workspace/infrastructure/models/workspace-member.model';
+import { WorkspaceInvitationModel } from '@modules/workspace/infrastructure/models/workspace-invitation.model';
 
 const logger = new Logger('Database');
 
@@ -21,7 +24,13 @@ export class Database {
         username: config.DB_USER,
         password: config.DB_PASSWORD,
         database: config.DB_NAME,
-        models: [UserModel, SessionModel],
+        models: [
+          UserModel,
+          SessionModel,
+          WorkspaceModel,
+          WorkspaceMemberModel,
+          WorkspaceInvitationModel,
+        ],
         pool: {
           max: config.DB_POOL_MAX,
           min: config.DB_POOL_MIN,
